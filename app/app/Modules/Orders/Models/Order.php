@@ -154,15 +154,4 @@ class Order extends Model
             // buyer_phone is encrypted (not searchable in SQL) — phone search is a later concern (search engine).
         });
     }
-
-    public function maskedBuyerPhone(): ?string
-    {
-        $p = $this->buyer_phone;
-        if (! $p) {
-            return null;
-        }
-        $len = strlen($p);
-
-        return $len <= 4 ? str_repeat('*', $len) : substr($p, 0, 3).str_repeat('*', max(0, $len - 5)).substr($p, -2);
-    }
 }

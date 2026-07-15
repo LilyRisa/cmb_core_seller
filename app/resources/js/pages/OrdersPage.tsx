@@ -551,7 +551,7 @@ export function OrdersPage() {
                 </Space>
             ),
         },
-        { title: 'Người mua', dataIndex: 'buyer_name', key: 'buyer', width: 180, render: (v, o) => <Space direction="vertical" size={0}><span>{v ?? '—'}</span><Typography.Text type="secondary" style={{ fontSize: 12 }}>{o.buyer_phone_masked ?? ''}</Typography.Text></Space> },
+        { title: 'Người mua', dataIndex: 'buyer_name', key: 'buyer', width: 180, render: (v, o) => <Space direction="vertical" size={0}><span>{v ?? '—'}</span><Typography.Text type="secondary" style={{ fontSize: 12 }}>{o.buyer_phone ?? ''}</Typography.Text></Space> },
         // SPEC 0021 — Badge ĐVVC + nhãn "Chờ lấy hàng" khi shipment.status='awaiting_pickup'.
         { title: 'ĐVVC', dataIndex: 'carrier', key: 'carrier', width: 140, render: (v, o) => (
             <Space direction="vertical" size={2} align="start">

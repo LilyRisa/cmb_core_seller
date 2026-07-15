@@ -10,14 +10,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * @mixin Customer
  *
- * Full customer view. `phone` (plaintext) is only included when the caller has
- * `customers.view_phone`; otherwise only `phone_masked`. See SPEC 0002 §6.1.
+ * Full customer view. `phone` (plaintext) is always shown to internal callers —
+ * chủ shop phải làm chủ dữ liệu khách của họ. See SPEC 2026-07-15.
  */
 class CustomerResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $canViewPhone = (bool) $request->user()?->can('customers.view_phone');
         $anonymized = $this->isAnonymized();
 
         // latest warning/danger note (from the loaded notes relation, if present; notes come id-desc)
@@ -37,8 +36,7 @@ class CustomerResource extends JsonResource
             'source' => $anonymized ? null : $this->source,
             'dob' => $anonymized ? null : $this->dob?->format('Y-m-d'),
             'address' => $anonymized ? null : $this->address,
-            'phone_masked' => $anonymized ? null : $this->maskedPhone(),
-            'phone' => ($canViewPhone && ! $anonymized) ? $this->phone : null,
+            'phone' => $anonymized ? null : $this->phone,
             'reputation' => ['score' => (int) $this->reputation_score, 'label' => $this->reputation_label],
             'is_blocked' => (bool) $this->is_blocked,
             'block_reason' => $this->block_reason,

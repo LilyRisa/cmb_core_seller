@@ -324,6 +324,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:6000,1')->group(funct
             Route::get('customers/lookup', [CustomerController::class, 'lookup'])->name('customers.lookup');
             Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
             Route::get('customers/{id}', [CustomerController::class, 'show'])->whereNumber('id')->name('customers.show');
+            // SPEC 2026-07-15 — sửa tên + avatar khách hàng.
+            Route::patch('customers/{id}', [CustomerController::class, 'update'])->whereNumber('id')->name('customers.update');
+            Route::post('customers/{id}/avatar', [CustomerController::class, 'avatar'])->whereNumber('id')->name('customers.avatar');
             Route::get('customers/{id}/orders', [CustomerController::class, 'orders'])->whereNumber('id')->name('customers.orders');
             Route::post('customers/{id}/wallet/topup', [CustomerWalletController::class, 'topup'])->whereNumber('id')->name('customers.wallet.topup');
             Route::get('customers/{id}/wallet/transactions', [CustomerWalletController::class, 'transactions'])->whereNumber('id')->name('customers.wallet.transactions');

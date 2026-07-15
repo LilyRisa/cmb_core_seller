@@ -12,9 +12,9 @@ use CMBcoreSeller\Modules\Customers\DTO\CustomerProfileDTO;
  */
 interface CustomerProfileContract
 {
-    public function findById(int $tenantId, int $customerId, bool $withFullPhone = false): ?CustomerProfileDTO;
+    public function findById(int $tenantId, int $customerId): ?CustomerProfileDTO;
 
-    public function findByPhone(int $tenantId, string $rawPhone, bool $withFullPhone = false): ?CustomerProfileDTO;
+    public function findByPhone(int $tenantId, string $rawPhone): ?CustomerProfileDTO;
 
     public function isBlocked(int $tenantId, int $customerId): bool;
 }

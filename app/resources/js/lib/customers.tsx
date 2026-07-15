@@ -43,7 +43,7 @@ export interface WarningNote {
 export interface CustomerCard {
     id: number;
     name: string | null;
-    phone_masked: string | null;
+    phone: string | null;
     reputation: { score: number; label: ReputationLabel };
     is_blocked: boolean;
     is_anonymized?: boolean;
@@ -54,7 +54,6 @@ export interface CustomerCard {
 }
 
 export interface Customer extends CustomerCard {
-    phone: string | null;            // only when caller has customers.view_phone
     /** Hồ sơ nhập tay (SPEC 0038 v2) — modal "Thông tin khách hàng". */
     avatar_url?: string | null;
     source?: string | null;
@@ -221,6 +220,34 @@ export function useBlockCustomer(id: number) {
     return useMutation({
         mutationFn: async (vars: { block: boolean; reason?: string }) => {
             const { data } = await api!.post<{ data: Customer }>(`/customers/${id}/${vars.block ? 'block' : 'unblock'}`, vars.block ? { reason: vars.reason } : {});
+            return data.data;
+        },
+        onSuccess: invalidate,
+    });
+}
+
+/** Sửa tên khách hàng (SPEC 2026-07-15). */
+export function useUpdateCustomerProfile(id: number) {
+    const api = useScopedApi();
+    const invalidate = useInvalidateCustomer(id);
+    return useMutation({
+        mutationFn: async (vars: { name: string }) => {
+            const { data } = await api!.patch<{ data: Customer }>(`/customers/${id}`, vars);
+            return data.data;
+        },
+        onSuccess: invalidate,
+    });
+}
+
+/** Đổi avatar khách hàng (multipart). SPEC 2026-07-15. */
+export function useUploadCustomerAvatar(id: number) {
+    const api = useScopedApi();
+    const invalidate = useInvalidateCustomer(id);
+    return useMutation({
+        mutationFn: async (file: File) => {
+            const form = new FormData();
+            form.append('file', file);
+            const { data } = await api!.post<{ data: Customer }>(`/customers/${id}/avatar`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
             return data.data;
         },
         onSuccess: invalidate,

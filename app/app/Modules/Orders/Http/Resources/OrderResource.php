@@ -52,7 +52,7 @@ class OrderResource extends JsonResource
             'raw_status' => $this->raw_status,
             'payment_status' => $this->payment_status,
             'buyer_name' => $this->buyer_name,
-            'buyer_phone_masked' => $this->maskedBuyerPhone(),
+            'buyer_phone' => $this->buyer_phone,
             'shipping_address' => $this->shipping_address,
             'currency' => $this->currency,
             'item_total' => $this->item_total,
@@ -201,8 +201,7 @@ class OrderResource extends JsonResource
         if (! $this->customer_id || ! $request->user()?->can('customers.view')) {
             return null;
         }
-        $withPhone = (bool) $request->user()->can('customers.view_phone');
-        $profile = app(CustomerProfileContract::class)->findById((int) $this->tenant_id, (int) $this->customer_id, $withPhone);
+        $profile = app(CustomerProfileContract::class)->findById((int) $this->tenant_id, (int) $this->customer_id);
 
         return $profile?->toOrderCard();
     }

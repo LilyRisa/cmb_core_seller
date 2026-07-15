@@ -46,7 +46,7 @@ enum Role: string
                 'orders.view', 'orders.update', 'orders.create', 'orders.status',
                 'fulfillment.view', 'fulfillment.print', 'fulfillment.ship',
                 'products.view', 'inventory.view', 'inventory.map', 'channels.view', 'dashboard.view',
-                'customers.view', 'customers.note', 'customers.view_phone',
+                'customers.view', 'customers.note',
                 // SPEC-0024 — NV đơn thường cũng trả tin với khách trong context xử lý đơn.
                 'messaging.view', 'messaging.reply',
             ],
@@ -74,7 +74,7 @@ enum Role: string
             // KHÔNG có quyền sửa đơn / kho / billing. Mở rộng phase sau nếu cần.
             self::StaffCs => [
                 'messaging.view', 'messaging.reply', 'messaging.template.manage',
-                'orders.view', 'customers.view', 'customers.view_phone', 'customers.note',
+                'orders.view', 'customers.view', 'customers.note',
                 'channels.view', 'dashboard.view', 'products.view', 'inventory.view',
             ],
         };

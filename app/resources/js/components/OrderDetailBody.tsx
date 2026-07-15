@@ -202,7 +202,7 @@ export function OrderDetailBody({ order }: { order: Order }) {
                     <Card title="Người nhận" size="small" style={{ marginBottom: 16 }}>
                         <Descriptions column={1} size="small" colon={false}>
                             <Descriptions.Item label="Tên">{addr.fullName ?? addr.name ?? order.buyer_name ?? '—'}</Descriptions.Item>
-                            <Descriptions.Item label="SĐT">{addr.phone ?? order.buyer_phone_masked ?? '—'}</Descriptions.Item>
+                            <Descriptions.Item label="SĐT">{addr.phone ?? order.buyer_phone ?? '—'}</Descriptions.Item>
                             <Descriptions.Item label="Địa chỉ">{[addr.line1, addr.address, addr.ward, addr.district, addr.province, addr.country].filter(Boolean).join(', ') || '—'}</Descriptions.Item>
                             {addr.note && <Descriptions.Item label="Ghi chú giao hàng">{addr.note}</Descriptions.Item>}
                         </Descriptions>

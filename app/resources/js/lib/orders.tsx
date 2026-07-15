@@ -68,7 +68,7 @@ export interface Order {
     is_pre_shipment?: boolean;
     payment_status: string | null;
     buyer_name: string | null;
-    buyer_phone_masked: string | null;
+    buyer_phone: string | null;
     shipping_address: Record<string, string> | null;
     currency: string;
     item_total: number;

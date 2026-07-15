@@ -73,6 +73,22 @@ class CustomerService
         return (bool) $note->delete();
     }
 
+    /** Sửa tên khách hàng (SPEC 2026-07-15). */
+    public function updateProfile(Customer $customer, string $name): Customer
+    {
+        $customer->forceFill(['name' => $name])->save();
+
+        return $customer;
+    }
+
+    /** Đổi avatar khách hàng — nhận URL đã lưu sẵn qua MediaUploader. SPEC 2026-07-15. */
+    public function updateAvatar(Customer $customer, string $avatarUrl): Customer
+    {
+        $customer->forceFill(['avatar_url' => $avatarUrl])->save();
+
+        return $customer;
+    }
+
     /**
      * @param  list<string>  $add
      * @param  list<string>  $remove

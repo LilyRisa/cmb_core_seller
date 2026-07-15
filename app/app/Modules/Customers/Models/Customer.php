@@ -103,16 +103,4 @@ class Customer extends Model
     {
         return $this->pii_anonymized_at !== null;
     }
-
-    /** `09xx xxx 321`-style mask of the stored (encrypted) phone. */
-    public function maskedPhone(): ?string
-    {
-        $p = $this->phone;
-        if (! $p) {
-            return null;
-        }
-        $len = strlen($p);
-
-        return $len <= 4 ? str_repeat('*', $len) : substr($p, 0, 3).str_repeat('*', max(0, $len - 5)).substr($p, -3);
-    }
 }

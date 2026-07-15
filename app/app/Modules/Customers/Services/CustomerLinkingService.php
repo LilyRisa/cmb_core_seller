@@ -58,7 +58,7 @@ class CustomerLinkingService
                     'tenant_id' => $tenantId,
                     'phone_hash' => $hash,
                     'phone' => $phone,
-                    'name' => $order->buyer_name ?: null,
+                    'name' => $order->buyer_name ?: ($order->source === 'manual' ? null : $this->defaultNameFor($order)),
                     'addresses_meta' => $this->mergeAddresses([], $order->shipping_address),
                     'lifetime_stats' => $this->zeroStats(),
                     'tags' => [],
@@ -183,6 +183,24 @@ class CustomerLinkingService
             'orders_by_source' => $bySource,   // R5 (Sprint 4)
             'computed_at' => now()->toIso8601String(),
         ];
+    }
+
+    /**
+     * Tên mặc định khi đơn sàn không có tên người mua (Lazada đôi khi không trả
+     * customer_first_name/last_name lẫn tên trong địa chỉ giao). Chỉ dùng lúc TẠO MỚI
+     * customer — không ghi đè tên đã có ở lần cập nhật sau. SPEC 2026-07-15.
+     */
+    private function defaultNameFor(Order $order): string
+    {
+        $label = match ($order->source) {
+            'lazada' => 'Lazada',
+            'tiktok' => 'TikTok Shop',
+            'shopee' => 'Shopee',
+            default => ucfirst((string) $order->source),
+        };
+        $at = $order->placed_at ?: $order->created_at ?: now();
+
+        return "Khách hàng {$label} {$at->format('dmY')}";
     }
 
     /** @return array<string,mixed> */

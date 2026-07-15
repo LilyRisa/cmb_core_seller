@@ -41,7 +41,7 @@ class TemplateContextBuilder
             $profile = $this->customers->findById((int) $conv->tenant_id, (int) $conv->customer_id);
             if ($profile) {
                 $ctx['customer.name'] = $profile->name;
-                $ctx['customer.phone'] = $profile->phoneMasked;
+                $ctx['customer.phone'] = $profile->phone;
                 $ctx['customer.reputation'] = $profile->reputationLabel;
             }
         }

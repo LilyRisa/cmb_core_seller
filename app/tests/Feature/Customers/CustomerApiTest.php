@@ -12,6 +12,8 @@ use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CustomerApiTest extends TestCase
@@ -68,7 +70,7 @@ class CustomerApiTest extends TestCase
         $res->assertJsonCount(2, 'data')->assertJsonPath('meta.pagination.total', 2);
         $names = collect($res->json('data'))->pluck('name')->all();
         $this->assertEqualsCanonicalizing(['Alice', 'Bob'], $names);
-        // owner has customers.view_phone ⇒ full phone present
+        // SPEC 2026-07-15 — SĐT luôn đầy đủ, không còn che nội bộ
         $alice = collect($res->json('data'))->firstWhere('name', 'Alice');
         $this->assertSame('0987654321', $alice['phone']);
         $this->assertSame('watch', $alice['reputation']['label']);
@@ -113,10 +115,9 @@ class CustomerApiTest extends TestCase
         $this->actingAs($staff)->withHeaders($this->h())->postJson("/api/v1/customers/{$this->alice->getKey()}/notes", ['note' => 'Đã gọi xác nhận, OK', 'severity' => 'info'])
             ->assertCreated()->assertJsonPath('data.kind', 'manual')->assertJsonPath('data.note', 'Đã gọi xác nhận, OK');
         $this->actingAs($viewer)->withHeaders($this->h())->postJson("/api/v1/customers/{$this->alice->getKey()}/notes", ['note' => 'x'])->assertForbidden();
-        // viewer cannot see full phone
+        // bỏ che SĐT nội bộ (SPEC 2026-07-15) — viewer vẫn thấy SĐT đầy đủ.
         $res = $this->actingAs($viewer)->withHeaders($this->h())->getJson("/api/v1/customers/{$this->alice->getKey()}")->assertOk();
-        $this->assertNull($res->json('data.phone'));
-        $this->assertNotNull($res->json('data.phone_masked'));
+        $this->assertSame('0987654321', $res->json('data.phone'));
     }
 
     public function test_cannot_delete_auto_note(): void
@@ -133,6 +134,32 @@ class CustomerApiTest extends TestCase
 
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/customers/{$this->bob->getKey()}/unblock")
             ->assertOk()->assertJsonPath('data.is_blocked', false)->assertJsonPath('data.reputation.label', 'ok');
+    }
+
+    /** SPEC 2026-07-15 — sửa tên khách hàng. */
+    public function test_update_name(): void
+    {
+        $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/customers/{$this->alice->getKey()}", ['name' => 'Alice (đã sửa)'])
+            ->assertOk()->assertJsonPath('data.name', 'Alice (đã sửa)');
+        $this->assertSame('Alice (đã sửa)', $this->alice->fresh()->name);
+    }
+
+    public function test_update_name_forbidden_without_permission(): void
+    {
+        $viewer = User::factory()->create();
+        $this->tenant->users()->attach($viewer->getKey(), ['role' => Role::Viewer->value]);
+        $this->actingAs($viewer)->withHeaders($this->h())->patchJson("/api/v1/customers/{$this->alice->getKey()}", ['name' => 'X'])->assertForbidden();
+    }
+
+    /** SPEC 2026-07-15 — đổi avatar khách hàng. */
+    public function test_upload_avatar(): void
+    {
+        Storage::fake(config('media.disk', 'public'));
+        $file = UploadedFile::fake()->image('avatar.jpg', 200, 200);
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())->post("/api/v1/customers/{$this->alice->getKey()}/avatar", ['file' => $file])
+            ->assertOk();
+        $this->assertNotEmpty($res->json('data.avatar_url'));
+        $this->assertNotNull($this->alice->fresh()->avatar_url);
     }
 
     public function test_tags(): void

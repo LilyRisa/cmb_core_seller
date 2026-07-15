@@ -35,7 +35,7 @@ class ArController extends Controller
 
             return array_merge($r, [
                 'customer_name' => $c?->name,
-                'customer_phone' => null, // mask — phone không cần ở Aging list
+                'customer_phone' => $c?->phone,
                 'reputation_label' => $c?->reputation_label,
             ]);
         }, $rows);

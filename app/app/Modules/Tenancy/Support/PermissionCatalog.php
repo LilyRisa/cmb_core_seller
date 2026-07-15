@@ -68,7 +68,6 @@ final class PermissionCatalog
             ]],
             ['key' => 'customers', 'label' => 'Khách hàng', 'permissions' => [
                 ['key' => 'customers.view', 'label' => 'Xem khách hàng', 'type' => 'view'],
-                ['key' => 'customers.view_phone', 'label' => 'Xem số điện thoại', 'type' => 'view'],
                 ['key' => 'customers.note', 'label' => 'Ghi chú khách', 'type' => 'action'],
                 ['key' => 'customers.block', 'label' => 'Chặn khách', 'type' => 'action'],
                 ['key' => 'customers.merge', 'label' => 'Gộp khách', 'type' => 'action'],

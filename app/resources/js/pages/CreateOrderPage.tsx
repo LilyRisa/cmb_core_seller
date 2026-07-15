@@ -248,8 +248,8 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
         })));
 
         // Phone — ưu tiên buyer_phone, fallback shipping_address.phone
-        const ph = o.buyer_phone_masked && !o.buyer_phone_masked.includes('*') ? o.buyer_phone_masked : (addr.phone ?? '');
-        setPhone(ph ?? '');
+        const ph = o.buyer_phone || addr.phone || '';
+        setPhone(ph);
 
         // shipAddress — rebuild từ shipping_address
         setShipAddress({
@@ -516,7 +516,7 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
             Modal.confirm({
                 title: 'Khách này đang BỊ CHẶN',
                 width: 480,
-                content: <span>Khách <b>{blockedCustomer.name ?? blockedCustomer.phone_masked ?? 'chưa rõ'}</b> đã bị chặn trong hệ thống. Vẫn tạo đơn?</span>,
+                content: <span>Khách <b>{blockedCustomer.name ?? blockedCustomer.phone ?? 'chưa rõ'}</b> đã bị chặn trong hệ thống. Vẫn tạo đơn?</span>,
                 okText: 'Vẫn tạo đơn', okButtonProps: { danger: true }, cancelText: 'Huỷ',
                 onOk: () => sendOrder(!!andPrint, payload),
             });
@@ -584,7 +584,7 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
             <Space size={8} style={{ width: '100%' }}>
                 <Avatar size={24} src={c.avatar_url || undefined} icon={<UserOutlined />} />
                 <span style={{ flex: 1 }}>{c.name ?? '—'}</span>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{c.phone_masked ?? ''}</Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{c.phone ?? ''}</Typography.Text>
                 <Tag color="blue" style={{ marginInlineEnd: 0 }}>{c.lifetime_stats?.orders_total ?? 0} đơn</Tag>
             </Space>
         ),

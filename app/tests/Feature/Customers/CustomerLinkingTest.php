@@ -10,6 +10,7 @@ use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class CustomerLinkingTest extends TestCase
@@ -119,6 +120,42 @@ class CustomerLinkingTest extends TestCase
     {
         $this->fire($this->makeOrder($this->tenant, 'O1', '(+84) ****21', StandardOrderStatus::Pending));
         $this->assertSame(0, Customer::withoutGlobalScope(TenantScope::class)->count());
+    }
+
+    /** SPEC 2026-07-15 — đơn sàn thiếu tên người mua (Lazada không luôn trả tên) ⇒ tên mặc định theo ngày đặt đơn. */
+    public function test_default_name_when_marketplace_order_has_no_buyer_name(): void
+    {
+        $placedAt = Carbon::parse('2026-07-15 10:00:00');
+        $order = Order::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'source' => 'lazada', 'channel_account_id' => null,
+            'external_order_id' => 'L1', 'order_number' => 'L1', 'status' => StandardOrderStatus::Pending, 'raw_status' => 'X',
+            'buyer_name' => null, 'shipping_address' => ['phone' => '0987654321', 'city' => 'Hà Nội', 'address' => 'Số 1'],
+            'currency' => 'VND', 'grand_total' => 100000, 'item_total' => 100000, 'placed_at' => $placedAt,
+            'has_issue' => false, 'tags' => [], 'source_updated_at' => now(),
+        ]);
+        $this->fire($order);
+
+        $c = Customer::withoutGlobalScope(TenantScope::class)->first();
+        $this->assertNotNull($c);
+        $this->assertSame('Khách hàng Lazada 15072026', $c->name);
+    }
+
+    /** Tên mặc định chỉ áp dụng lúc TẠO MỚI — không ghi đè tên user đã tự sửa ở đơn sau. */
+    public function test_default_name_does_not_overwrite_existing_customer_name(): void
+    {
+        $order1 = $this->makeOrder($this->tenant, 'O1', '0987654321', StandardOrderStatus::Pending, name: null);
+        $order1->source = 'lazada';
+        $order1->save();
+        $this->fire($order1);
+        $c = Customer::withoutGlobalScope(TenantScope::class)->first();
+        $c->forceFill(['name' => 'Tên do user tự sửa'])->save();
+
+        $order2 = $this->makeOrder($this->tenant, 'O2', '0987654321', StandardOrderStatus::Pending, name: null);
+        $order2->source = 'lazada';
+        $order2->save();
+        $this->fire($order2);
+
+        $this->assertSame('Tên do user tự sửa', $c->fresh()->name);
     }
 
     public function test_same_phone_in_two_tenants_are_separate_customers(): void

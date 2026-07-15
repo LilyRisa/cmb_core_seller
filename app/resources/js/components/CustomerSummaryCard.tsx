@@ -36,7 +36,7 @@ export function CustomerSummaryCard({ customer }: { customer?: CustomerCard | nu
                 <Space wrap>
                     <UserOutlined />
                     <Typography.Text strong>{customer.name ?? 'Khách lẻ'}</Typography.Text>
-                    <Typography.Text type="secondary">{customer.phone_masked ?? ''}</Typography.Text>
+                    <Typography.Text type="secondary">{customer.phone ?? ''}</Typography.Text>
                     <ReputationBadge label={customer.is_blocked ? 'blocked' : customer.reputation.label} score={customer.reputation.score} showOk size="small" />
                     {customer.tags?.map((t) => <Tag key={t} color={t === 'vip' ? 'purple' : 'blue'}>{t}</Tag>)}
                 </Space>

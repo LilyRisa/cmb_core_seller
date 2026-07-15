@@ -14,6 +14,7 @@ use CMBcoreSeller\Modules\Customers\Services\CustomerWarningService;
 use CMBcoreSeller\Modules\Customers\Support\CustomerPhoneNormalizer;
 use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
+use CMBcoreSeller\Support\MediaUploader;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -116,31 +117,11 @@ class CustomerController extends Controller
             'source' => $o->source,
         ];
 
-        // B3 fix (Sprint 1 P0) — addresses_meta chứa `phone` cleartext của các địa chỉ cũ. Mask theo
-        // permission `customers.view_phone` để không leak SĐT cho user không có quyền (SPEC 0002 §6.1).
-        $canViewPhone = (bool) $request->user()?->can('customers.view_phone');
-        $maskPhone = function (?string $phone): ?string {
-            if ($phone === null || $phone === '') {
-                return $phone;
-            }
-            $digits = preg_replace('/\D/', '', $phone) ?? '';
-            $len = strlen($digits);
-            if ($len <= 4) {
-                return str_repeat('*', $len);
-            }
-
-            // Hiển thị 3 chữ số đầu + *** + 2 chữ số cuối (vd 091*****23).
-            return substr($digits, 0, 3).str_repeat('*', max(0, $len - 5)).substr($digits, -2);
-        };
+        // addresses_meta chứa `phone` cleartext của các địa chỉ cũ — không còn che, chủ shop
+        // phải làm chủ dữ liệu khách của họ (SPEC 2026-07-15).
         $addresses = collect($customer->addresses_meta ?? [])
             ->filter(fn ($a) => is_array($a))   // Collection::filter truyền (value,key) ⇒ không dùng 'is_array' chuỗi
-            ->map(function (array $a) use ($canViewPhone, $maskPhone) {
-                if (! $canViewPhone && array_key_exists('phone', $a)) {
-                    $a['phone'] = $maskPhone($a['phone']);
-                }
-
-                return $a;
-            })->values()->all();
+            ->values()->all();
 
         return response()->json(['data' => [
             'customer' => new CustomerResource($customer),
@@ -253,6 +234,30 @@ class CustomerController extends Controller
         $customer = Customer::query()->findOrFail($id);
 
         return response()->json(['data' => new CustomerResource($service->unblock($customer, $request->user()))]);
+    }
+
+    /** PATCH /api/v1/customers/{id} — sửa tên khách hàng. SPEC 2026-07-15. */
+    public function update(Request $request, int $id, CustomerService $service): JsonResponse
+    {
+        abort_unless($request->user()?->can('customers.note'), 403, 'Bạn không có quyền sửa hồ sơ khách hàng.');
+        $data = $request->validate(['name' => ['required', 'string', 'max:120']]);
+        $customer = Customer::query()->findOrFail($id);
+
+        return response()->json(['data' => new CustomerResource($service->updateProfile($customer, $data['name']))]);
+    }
+
+    /** POST /api/v1/customers/{id}/avatar — upload ảnh đại diện khách hàng. SPEC 2026-07-15. */
+    public function avatar(Request $request, int $id, CustomerService $service, MediaUploader $uploader): JsonResponse
+    {
+        abort_unless($request->user()?->can('customers.note'), 403, 'Bạn không có quyền sửa hồ sơ khách hàng.');
+        $mimes = implode(',', (array) config('media.images.mimes', ['jpg', 'jpeg', 'png', 'webp']));
+        $request->validate([
+            'file' => ['required', 'file', 'image', 'mimes:'.$mimes, 'max:'.(int) config('media.images.max_kb', 5120)],
+        ]);
+        $customer = Customer::query()->findOrFail($id);
+        $stored = $uploader->storeImage($request->file('file'), (int) $customer->tenant_id, 'customer-avatars');
+
+        return response()->json(['data' => new CustomerResource($service->updateAvatar($customer, $stored['url']))]);
     }
 
     /** POST /api/v1/customers/{id}/tags */

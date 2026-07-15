@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Card, Empty, Input, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined, SearchOutlined } from '@ant-design/icons';
+import { Avatar, Card, Empty, Input, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { CheckCircleOutlined, CloseCircleOutlined, SearchOutlined, UserOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { ReputationBadge } from '@/components/ReputationBadge';
@@ -34,9 +34,12 @@ export function CustomersPage() {
 
     const columns: ColumnsType<Customer> = [
         { title: 'Khách hàng', key: 'name', render: (_, c) => (
-            <Space direction="vertical" size={2}>
-                <Link to={`/customers/${c.id}`} style={{ fontWeight: 600 }}>{c.name ?? 'Khách lẻ'}</Link>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{c.phone_masked ?? '—'}</Typography.Text>
+            <Space size={8}>
+                <Avatar size={32} src={c.avatar_url || undefined} icon={<UserOutlined />} />
+                <Space direction="vertical" size={2}>
+                    <Link to={`/customers/${c.id}`} style={{ fontWeight: 600 }}>{c.name ?? 'Khách lẻ'}</Link>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{c.phone ?? '—'}</Typography.Text>
+                </Space>
             </Space>
         ) },
         { title: 'Uy tín', key: 'rep', width: 160, render: (_, c) => <ReputationBadge label={c.is_blocked ? 'blocked' : c.reputation.label} score={c.reputation.score} showOk /> },

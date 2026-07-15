@@ -69,7 +69,7 @@ class PartyController extends Controller
             'id' => (int) $c->id,
             'type' => 'customer',
             'label' => $c->name ?: ('Khách #'.$c->id),
-            'secondary' => $this->maskedPhone($c),
+            'secondary' => $c->phone,
         ])->all();
     }
 
@@ -92,17 +92,5 @@ class PartyController extends Controller
             'label' => $s->name ?: ('NCC #'.$s->id),
             'secondary' => $s->code,
         ])->all();
-    }
-
-    /** Che SĐT khách (PII) — chỉ lộ đuôi để phân biệt khi trùng tên. */
-    private function maskedPhone(Customer $c): ?string
-    {
-        $phone = (string) ($c->phone ?? '');
-        if ($phone === '') {
-            return null;
-        }
-        $tail = substr($phone, -4);
-
-        return '****'.$tail;
     }
 }

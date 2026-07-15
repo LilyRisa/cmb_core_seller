@@ -15,15 +15,15 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
  */
 class CustomerProfileResolver implements CustomerProfileContract
 {
-    public function findById(int $tenantId, int $customerId, bool $withFullPhone = false): ?CustomerProfileDTO
+    public function findById(int $tenantId, int $customerId): ?CustomerProfileDTO
     {
         $customer = Customer::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)->whereKey($customerId)->first();
 
-        return $customer ? CustomerProfileDTO::fromModel($customer, $withFullPhone, $this->latestWarningNote($customer)) : null;
+        return $customer ? CustomerProfileDTO::fromModel($customer, $this->latestWarningNote($customer)) : null;
     }
 
-    public function findByPhone(int $tenantId, string $rawPhone, bool $withFullPhone = false): ?CustomerProfileDTO
+    public function findByPhone(int $tenantId, string $rawPhone): ?CustomerProfileDTO
     {
         $hash = CustomerPhoneNormalizer::normalizeAndHash($rawPhone);
         if ($hash === null) {
@@ -32,7 +32,7 @@ class CustomerProfileResolver implements CustomerProfileContract
         $customer = Customer::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)->where('phone_hash', $hash)->first();
 
-        return $customer ? CustomerProfileDTO::fromModel($customer, $withFullPhone, $this->latestWarningNote($customer)) : null;
+        return $customer ? CustomerProfileDTO::fromModel($customer, $this->latestWarningNote($customer)) : null;
     }
 
     public function isBlocked(int $tenantId, int $customerId): bool

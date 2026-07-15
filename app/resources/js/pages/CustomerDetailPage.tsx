@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { App as AntApp, Alert, Button, Card, Col, Descriptions, Empty, Input, List, Result, Row, Select, Skeleton, Space, Table, Tag, Typography } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { App as AntApp, Alert, Avatar, Button, Card, Col, Descriptions, Empty, Input, List, Result, Row, Select, Skeleton, Space, Table, Tag, Typography, Upload } from 'antd';
+import { ArrowLeftOutlined, CheckOutlined, CloseOutlined, EditOutlined, UserOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { ReputationBadge } from '@/components/ReputationBadge';
@@ -12,7 +12,7 @@ import { CustomerWalletPanel } from '@/components/CustomerWalletPanel';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
-import { CustomerNote, NOTE_SEVERITY_COLOR, useAddCustomerNote, useBlockCustomer, useCustomer, useCustomerOrders, useDeleteCustomerNote } from '@/lib/customers';
+import { CustomerNote, NOTE_SEVERITY_COLOR, useAddCustomerNote, useBlockCustomer, useCustomer, useCustomerOrders, useDeleteCustomerNote, useUpdateCustomerProfile, useUploadCustomerAvatar } from '@/lib/customers';
 import { Order } from '@/lib/orders';
 
 export function CustomerDetailPage() {
@@ -26,8 +26,12 @@ export function CustomerDetailPage() {
     const addNote = useAddCustomerNote(cid);
     const deleteNote = useDeleteCustomerNote(cid);
     const block = useBlockCustomer(cid);
+    const updateProfile = useUpdateCustomerProfile(cid);
+    const uploadAvatar = useUploadCustomerAvatar(cid);
     const [noteText, setNoteText] = useState('');
     const [noteSeverity, setNoteSeverity] = useState<'info' | 'warning' | 'danger'>('info');
+    const [editingName, setEditingName] = useState(false);
+    const [nameDraft, setNameDraft] = useState('');
 
     if (isError) return <Result status="error" title="Không tải được khách hàng" subTitle={errorMessage(error)} extra={<Link to="/customers"><Button>Về danh sách</Button></Link>} />;
     if (isLoading || !customer) return <Card><Skeleton active paragraph={{ rows: 8 }} /></Card>;
@@ -60,12 +64,37 @@ export function CustomerDetailPage() {
         });
     };
 
+    const startEditName = () => { setNameDraft(customer.name ?? ''); setEditingName(true); };
+    const saveName = () => {
+        const name = nameDraft.trim();
+        if (!name) { message.error('Tên không được để trống.'); return; }
+        updateProfile.mutate({ name }, { onSuccess: () => { setEditingName(false); message.success('Đã lưu tên khách hàng'); }, onError: (e) => message.error(errorMessage(e)) });
+    };
+    const handleAvatarUpload = (file: File) => {
+        uploadAvatar.mutate(file, { onSuccess: () => message.success('Đã cập nhật ảnh đại diện'), onError: (e) => message.error(errorMessage(e)) });
+        return false; // ngăn Upload tự gửi request mặc định
+    };
+
     return (
         <div>
             <PageHeader
                 title={<Space size="middle">
                     <Link to="/customers"><Button type="text" icon={<ArrowLeftOutlined />} /></Link>
-                    <span>{customer.name ?? 'Khách lẻ'}</span>
+                    <Upload accept="image/*" showUploadList={false} beforeUpload={handleAvatarUpload} disabled={!canNote}>
+                        <Avatar size={40} src={customer.avatar_url || undefined} icon={<UserOutlined />} style={{ cursor: canNote ? 'pointer' : 'default' }} />
+                    </Upload>
+                    {editingName ? (
+                        <Space.Compact>
+                            <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} onPressEnter={saveName} maxLength={120} autoFocus style={{ width: 220 }} />
+                            <Button icon={<CheckOutlined />} type="primary" loading={updateProfile.isPending} onClick={saveName} />
+                            <Button icon={<CloseOutlined />} onClick={() => setEditingName(false)} />
+                        </Space.Compact>
+                    ) : (
+                        <Space size={4}>
+                            <span>{customer.name ?? 'Khách lẻ'}</span>
+                            {canNote && <Button type="text" size="small" icon={<EditOutlined />} onClick={startEditName} />}
+                        </Space>
+                    )}
                     <ReputationBadge label={customer.is_blocked ? 'blocked' : customer.reputation.label} score={customer.reputation.score} showOk />
                     {customer.tags?.map((t) => <Tag key={t} color={t === 'vip' ? 'purple' : 'blue'}>{t}</Tag>)}
                 </Space>}
@@ -79,7 +108,7 @@ export function CustomerDetailPage() {
                 <Col xs={24} lg={8}>
                     <Card title="Thông tin" size="small" style={{ marginBottom: 16 }}>
                         <Descriptions column={1} size="small" colon={false}>
-                            <Descriptions.Item label="SĐT">{customer.phone ?? customer.phone_masked ?? '—'}</Descriptions.Item>
+                            <Descriptions.Item label="SĐT">{customer.phone ?? '—'}</Descriptions.Item>
                             <Descriptions.Item label="Điểm uy tín">{customer.reputation.score}/100</Descriptions.Item>
                             <Descriptions.Item label="Tổng đơn">{s.orders_total}</Descriptions.Item>
                             <Descriptions.Item label="Hoàn thành">{s.orders_completed}</Descriptions.Item>

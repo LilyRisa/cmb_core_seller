@@ -20,8 +20,7 @@ final class CustomerProfileDTO
     public function __construct(
         public readonly int $id,
         public readonly ?string $name,
-        public readonly ?string $phoneMasked,
-        public readonly ?string $phoneFull,        // only populated when caller has customers.view_phone
+        public readonly ?string $phone,
         public readonly int $reputationScore,
         public readonly string $reputationLabel,
         public readonly bool $isBlocked,
@@ -33,13 +32,12 @@ final class CustomerProfileDTO
         public readonly ?array $latestWarningNote,
     ) {}
 
-    public static function fromModel(Customer $c, bool $withFullPhone = false, ?CustomerNote $latestWarning = null): self
+    public static function fromModel(Customer $c, ?CustomerNote $latestWarning = null): self
     {
         return new self(
             id: (int) $c->getKey(),
             name: $c->name,
-            phoneMasked: $c->maskedPhone(),
-            phoneFull: $withFullPhone ? $c->phone : null,
+            phone: $c->phone,
             reputationScore: (int) $c->reputation_score,
             reputationLabel: $c->reputation_label,
             isBlocked: (bool) $c->is_blocked,
@@ -65,7 +63,7 @@ final class CustomerProfileDTO
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'phone_masked' => $this->phoneMasked,
+            'phone' => $this->phone,
             'reputation' => ['score' => $this->reputationScore, 'label' => $this->reputationLabel],
             'is_blocked' => $this->isBlocked,
             'tags' => $this->tags,
