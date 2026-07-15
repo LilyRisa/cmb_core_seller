@@ -23,6 +23,7 @@ import { AdminAiSupportPage } from './pages/settings/AdminAiSupportPage';
 import { AdminVisualRerankPage } from './pages/settings/AdminVisualRerankPage';
 import { AdminTranscriptionPage } from './pages/settings/AdminTranscriptionPage';
 import { AdminSupportRequestsPage } from './pages/support/AdminSupportRequestsPage';
+import { AdminNotificationEmailsPage } from './pages/AdminNotificationEmailsPage';
 
 export function AdminApp() {
     return (
@@ -48,6 +49,7 @@ export function AdminApp() {
                     <Route path="audit-logs" element={<AdminAuditLogsPage />} />
                     <Route path="users" element={<AdminUsersPage />} />
                     <Route path="settings" element={<SystemSettingsPage />} />
+                    <Route path="notification-emails" element={<AdminNotificationEmailsPage />} />
                     <Route path="ai-providers" element={<AdminAiProvidersPage />} />
                     <Route path="marketing-ai-providers" element={<AdminMarketingAiProvidersPage />} />
                     <Route path="ai-support" element={<AdminAiSupportPage />} />

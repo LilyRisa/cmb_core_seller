@@ -20,6 +20,7 @@ import {
     SolutionOutlined,
     PictureOutlined,
     AudioOutlined,
+    MailOutlined,
 } from '@ant-design/icons';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminLogout, useAdminMe } from './lib/adminAuth';
@@ -34,6 +35,7 @@ const SIDEBAR_ITEMS = [
     { key: '/admin/announcements', icon: <SoundOutlined />, label: 'Popup thông báo' },
     { key: '/admin/desktop-backgrounds', icon: <PictureOutlined />, label: 'Hình nền Desktop' },
     { key: '/admin/settings', icon: <SettingOutlined />, label: 'Hệ thống' },
+    { key: '/admin/notification-emails', icon: <MailOutlined />, label: 'Email thông báo' },
     { key: '/admin/ai-providers', icon: <ApiOutlined />, label: 'Nhà cung cấp AI' },
     { key: '/admin/marketing-ai-providers', icon: <ApiOutlined />, label: 'AI Marketing' },
     { key: '/admin/ai-support', icon: <CustomerServiceOutlined />, label: 'AI Trợ giúp' },
