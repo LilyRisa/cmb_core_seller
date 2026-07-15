@@ -63,7 +63,8 @@ export interface ListingDraft {
     attributes: Record<string, unknown>;
     media_refs: string[];
     logistics: Record<string, unknown>;
-    validation_errors: string[];
+    /** Map field → message, vd {"categoryId": "Phải chọn danh mục lá"}. KHÔNG phải mảng chuỗi. */
+    validation_errors: Record<string, string>;
     skus: ListingDraftSku[];
 }
 

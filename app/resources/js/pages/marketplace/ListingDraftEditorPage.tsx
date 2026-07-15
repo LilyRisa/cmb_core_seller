@@ -213,7 +213,7 @@ export function ListingDraftEditorPage() {
     const back = () => navigate('/marketplace/products');
     const status = listing?.status ?? 'draft';
     const statusMeta = STATUS_TAG[status] ?? STATUS_TAG.draft;
-    const validationErrors = listing?.validation_errors ?? [];
+    const validationErrors = Object.entries(listing?.validation_errors ?? {});
 
     const skuColumns: ColumnsType<ListingDraftSku> = useMemo(() => {
         const cols: ColumnsType<ListingDraftSku> = [
@@ -278,7 +278,7 @@ export function ListingDraftEditorPage() {
 
             {validationErrors.length > 0 && (
                 <Alert type="warning" showIcon style={{ marginBottom: 16 }} message="Cần sửa các lỗi sau trước khi đẩy lên sàn"
-                    description={<List size="small" dataSource={validationErrors} renderItem={(err) => <List.Item style={{ padding: '2px 0', border: 'none' }}>{err}</List.Item>} />} />
+                    description={<List size="small" dataSource={validationErrors} renderItem={([field, msg]) => <List.Item style={{ padding: '2px 0', border: 'none' }}>{msg} <Typography.Text type="secondary">({field})</Typography.Text></List.Item>} />} />
             )}
 
             <Card title="Thông tin" style={{ marginBottom: 16 }}>
