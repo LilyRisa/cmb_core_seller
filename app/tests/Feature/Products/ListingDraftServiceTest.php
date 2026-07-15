@@ -305,6 +305,27 @@ class ListingDraftServiceTest extends TestCase
             ->assertJsonPath('data.name', 'Áo thun cotton');
     }
 
+    public function test_title_edit_survives_stale_attributes_payload_sent_alongside(): void
+    {
+        $svc = app(ListingDraftService::class);
+        $draft = $svc->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');
+
+        // Lưu lần 1: đặt tiêu đề — attributes column giờ đã có khóa 'name'.
+        $draft = $svc->update((int) $draft->getKey(), ['name' => 'Tiêu đề đầu']);
+
+        // Mô phỏng FE: đã nạp draft (attributes bao gồm 'name' CŨ) TRƯỚC khi người dùng sửa
+        // tiếp tiêu đề, rồi Lưu — payload gửi cả 'name' MỚI lẫn 'attributes' (bản CŨ, nạp
+        // trước đó, buildPayload()/buildBulkPayload() luôn gửi kèm attributes như vậy).
+        $staleAttributes = $draft->attributes;
+
+        $draft2 = $svc->update((int) $draft->getKey(), [
+            'name' => 'Tiêu đề mới',
+            'attributes' => $staleAttributes,
+        ]);
+
+        $this->assertSame('Tiêu đề mới', $draft2->attributes['name'] ?? null);
+    }
+
     public function test_recreating_draft_after_soft_delete_does_not_violate_unique(): void
     {
         $svc = app(ListingDraftService::class);

@@ -128,8 +128,24 @@ final class ListingDraftService
         $draft = ListingDraft::with('skus')->findOrFail($listingId);
 
         DB::transaction(function () use ($draft, $data) {
+            foreach (['category_id', 'brand_id', 'attributes', 'media_refs', 'logistics'] as $key) {
+                if (array_key_exists($key, $data)) {
+                    if ($key === 'attributes') {
+                        // array_replace (KHÔNG array_merge): id thuộc tính sàn là chuỗi-số
+                        // (vd "100000"); array_merge sẽ ĐÁNH SỐ LẠI khóa số → mất id thật,
+                        // phình mảng mỗi lần lưu ⇒ thuộc tính "điền xong lưu lại mất".
+                        $draft->attributes = array_replace($draft->attributes ?? [], $data[$key] ?? []);
+                    } else {
+                        $draft->{$key} = $data[$key];
+                    }
+                }
+            }
+
             // Tiêu đề riêng cho listing (override tên SP gốc) — lưu trong attributes['name'].
-            // Rỗng ⇒ null để resource fallback về product->name.
+            // Rỗng ⇒ null để resource fallback về product->name. XỬ LÝ SAU khối 'attributes'
+            // ở trên — FE luôn gửi kèm 'attributes' là bản nạp lúc mở trang (đã có 'name'/
+            // 'description' CŨ từ lần lưu trước, vì đây là raw column), nếu xử lý trước thì
+            // array_replace ở trên sẽ ghi đè NGƯỢC 'name'/'description' MỚI về giá trị cũ.
             if (array_key_exists('name', $data)) {
                 $attrs = $draft->attributes ?? [];
                 $attrs['name'] = (trim((string) ($data['name'] ?? '')) !== '') ? trim((string) $data['name']) : null;
@@ -146,19 +162,6 @@ final class ListingDraftService
                 $attrs = $draft->attributes ?? [];
                 $attrs['video_url'] = ($data['video_url'] ?? '') !== '' ? $data['video_url'] : null;
                 $draft->attributes = $attrs;
-            }
-
-            foreach (['category_id', 'brand_id', 'attributes', 'media_refs', 'logistics'] as $key) {
-                if (array_key_exists($key, $data)) {
-                    if ($key === 'attributes') {
-                        // array_replace (KHÔNG array_merge): id thuộc tính sàn là chuỗi-số
-                        // (vd "100000"); array_merge sẽ ĐÁNH SỐ LẠI khóa số → mất id thật,
-                        // phình mảng mỗi lần lưu ⇒ thuộc tính "điền xong lưu lại mất".
-                        $draft->attributes = array_replace($draft->attributes ?? [], $data[$key] ?? []);
-                    } else {
-                        $draft->{$key} = $data[$key];
-                    }
-                }
             }
             $draft->save();
 
