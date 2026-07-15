@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Admin\Notifications\Listeners;
 
+use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Admin\Notifications\NotificationTypeCatalog;
 use CMBcoreSeller\Modules\Admin\Notifications\Services\AdminNotificationDispatcher;
 use CMBcoreSeller\Modules\Support\Events\SupportNewConversationOpened;
@@ -22,10 +23,14 @@ class NotifyAdminsOnNewSupportConversation implements ShouldQueue
 
     public function handle(SupportNewConversationOpened $event): void
     {
-        $tenantName = Tenant::find($event->tenantId)?->name ?? '(không rõ shop)';
+        $tenant = Tenant::find($event->tenantId);
+        $tenantName = $tenant instanceof Tenant ? $tenant->name : '(không rõ shop)';
+
+        $senderName = $event->userId !== null ? (User::find($event->userId)?->name) : null;
 
         $this->dispatcher->notify(NotificationTypeCatalog::SUPPORT_NEW_CONVERSATION, [
             'tenant_name' => $tenantName,
+            'sender_name' => $senderName ?? '(không rõ người gửi)',
             'snippet' => $event->snippet,
             'conversation_id' => $event->conversationId,
         ]);

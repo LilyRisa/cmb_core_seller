@@ -36,8 +36,8 @@ class AdminAlertNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         return match ($this->type) {
-            'support.new_conversation' => $this->supportMail(),
-            'auth.user_verified' => $this->userVerifiedMail(),
+            NotificationTypeCatalog::SUPPORT_NEW_CONVERSATION => $this->supportMail(),
+            NotificationTypeCatalog::AUTH_USER_VERIFIED => $this->userVerifiedMail(),
             'test' => $this->testMail(),
             default => throw new InvalidArgumentException("Unknown admin alert type: {$this->type}"),
         };
@@ -46,6 +46,7 @@ class AdminAlertNotification extends Notification implements ShouldQueue
     private function supportMail(): MailMessage
     {
         $tenantName = (string) ($this->context['tenant_name'] ?? '(không rõ shop)');
+        $senderName = (string) ($this->context['sender_name'] ?? '(không rõ người gửi)');
         $snippet = (string) ($this->context['snippet'] ?? '');
         $conversationId = (int) ($this->context['conversation_id'] ?? 0);
         $appUrl = rtrim((string) config('notifications.frontend_url'), '/');
@@ -54,6 +55,7 @@ class AdminAlertNotification extends Notification implements ShouldQueue
             ->subject("[CMBcoreSeller] Khách nhắn CSKH mới — {$tenantName}")
             ->greeting('Có tin nhắn CSKH mới')
             ->line("Shop: {$tenantName}")
+            ->line("Người gửi: {$senderName}")
             ->line("Nội dung: {$snippet}")
             ->action('Xem hội thoại', "{$appUrl}/admin/support-requests")
             ->line("Mã hội thoại: #{$conversationId}");
