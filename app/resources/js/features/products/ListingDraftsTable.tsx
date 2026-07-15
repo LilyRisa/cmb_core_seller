@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App as AntApp, Badge, Button, Empty, Image, Popconfirm, Space, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Badge, Button, Empty, Image, Popconfirm, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { CloudUploadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, LoadingOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
@@ -86,6 +86,16 @@ export function ListingDraftsTable({
         [rows, selectedRowKeys],
     );
 
+    const selectedRows = useMemo(
+        () => rows.filter((r) => selectedRowKeys.includes(r.id)),
+        [rows, selectedRowKeys],
+    );
+    const selectedProviders = useMemo(
+        () => Array.from(new Set(selectedRows.map((r) => r.provider))),
+        [selectedRows],
+    );
+    const bulkEditDisabled = selectedRows.length === 0 || selectedProviders.length > 1;
+
     const openEditor = (listingId: number) => navigate(`/marketplace/listings/${listingId}/edit`);
 
     const handlePush = (id: number) => {
@@ -113,6 +123,21 @@ export function ListingDraftsTable({
                 setPushModalOpen(true);
             },
             onError: (e) => message.error(errorMessage(e)),
+        });
+    };
+
+    const handleBulkEdit = () => {
+        if (bulkEditDisabled) return;
+        navigate('/marketplace/listings/bulk-edit', {
+            state: {
+                rows: selectedRows.map((r) => ({
+                    id: r.id,
+                    productName: r.productName,
+                    productImage: r.productImage,
+                    shopName: shopName(r.channel_account_id),
+                    provider: r.provider,
+                })),
+            },
         });
     };
 
@@ -210,7 +235,12 @@ export function ListingDraftsTable({
                     >
                         Đẩy hàng loạt{readyIds.length ? ` (${readyIds.length})` : ''}
                     </Button>
-                    <Typography.Text type="secondary">Chọn các listing “Sẵn sàng” để đẩy cùng lúc.</Typography.Text>
+                    <Tooltip title={selectedProviders.length > 1 ? 'Chỉ chọn được các listing cùng 1 sàn' : undefined}>
+                        <Button icon={<EditOutlined />} disabled={bulkEditDisabled} onClick={handleBulkEdit}>
+                            Chỉnh sửa hàng loạt{selectedRows.length ? ` (${selectedRows.length})` : ''}
+                        </Button>
+                    </Tooltip>
+                    <Typography.Text type="secondary">Chọn các listing Nháp/Sẵn sàng/Lỗi để sửa hoặc đẩy cùng lúc.</Typography.Text>
                 </Space>
             )}
 
@@ -225,7 +255,7 @@ export function ListingDraftsTable({
                         ? {
                               selectedRowKeys,
                               onChange: (keys) => setSelectedRowKeys(keys as number[]),
-                              getCheckboxProps: (r) => ({ disabled: r.status !== 'ready' }),
+                              getCheckboxProps: (r) => ({ disabled: !['draft', 'ready', 'failed'].includes(r.status) }),
                           }
                         : undefined
                 }
