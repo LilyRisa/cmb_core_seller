@@ -398,3 +398,29 @@ export async function getBrands(
     });
     return data.data;
 }
+
+/* ============================================================================
+ * Chỉnh sửa hàng loạt (SPEC 2026-07-15) — sửa nhiều nháp cùng 1 provider cùng lúc
+ * ========================================================================== */
+
+export interface BulkUpdateItem extends UpdateListingPayload {
+    id: number;
+}
+
+export interface BulkUpdateResult {
+    id: number;
+    status: ListingStatus | 'error';
+    validation_errors: Record<string, string> | null;
+}
+
+export async function getListingsBulk(client: AxiosInstance, ids: number[]): Promise<ListingDraft[]> {
+    const { data } = await client.get<{ data: ListingDraft[] }>('/listings/bulk', {
+        params: { ids: ids.join(',') },
+    });
+    return data.data;
+}
+
+export async function updateListingsBulk(client: AxiosInstance, items: BulkUpdateItem[]): Promise<BulkUpdateResult[]> {
+    const { data } = await client.put<{ data: BulkUpdateResult[] }>('/listings/bulk', { items });
+    return data.data;
+}

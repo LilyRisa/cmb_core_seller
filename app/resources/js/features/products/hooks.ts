@@ -17,14 +17,18 @@ import {
     getCategories,
     getListing,
     getListingLimits,
+    getListingsBulk,
     getMarketplaceDetail,
     getPushBatch,
     getShippingOptions,
     listMasterProducts,
     pushListing,
     updateListing,
+    updateListingsBulk,
     updateMarketplaceListing,
     type BulkCloneResult,
+    type BulkUpdateItem,
+    type BulkUpdateResult,
     type ListingDraft,
     type MarketplaceEditPayload,
     type PushBatch,
@@ -299,4 +303,27 @@ export function useBulkPush() {
     });
 }
 
-export type { PushBatch };
+export function useListingsBulk(ids: number[]) {
+    const client = useScopedApi();
+    const tenantId = useTenantId();
+    const key = [...ids].sort((a, b) => a - b).join(',');
+    return useQuery({
+        queryKey: ['listings-bulk', tenantId, key],
+        enabled: client != null && ids.length > 0,
+        queryFn: () => getListingsBulk(client!, ids),
+    });
+}
+
+export function useBulkUpdateListings() {
+    const client = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useTenantId();
+    return useMutation({
+        mutationFn: (items: BulkUpdateItem[]) => updateListingsBulk(client!, items),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });
+        },
+    });
+}
+
+export type { BulkUpdateItem, BulkUpdateResult, PushBatch };
