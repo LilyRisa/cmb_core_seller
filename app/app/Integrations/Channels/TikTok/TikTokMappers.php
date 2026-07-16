@@ -140,7 +140,11 @@ final class TikTokMappers
         $itemTotal = $m('sub_total');
         $shippingFee = $m('shipping_fee');
         $sellerDiscount = $m('seller_discount') + $m('shipping_fee_seller_discount');
-        $platformDiscount = $m('platform_discount') + $m('shipping_fee_platform_discount');
+        // `shipping_fee_platform_discount` là tiền sàn trợ giá phí ship cho KHÁCH (đã phản ánh ở
+        // `shippingFee` — phí ship cuối cùng thu được), KHÔNG phải tiền hoàn về cho shop. Gộp vào
+        // `platformDiscount` sẽ bị `OrderProfitService` cộng khống vào doanh thu ⇒ lãi ảo (bug 2026-07-16:
+        // đơn 202.500đ báo lãi 212.650đ — cao hơn cả giá bán).
+        $platformDiscount = $m('platform_discount');
         $tax = $m('tax');
         $grandTotal = $m('total_amount');
         if ($grandTotal === 0) {

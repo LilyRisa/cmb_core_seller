@@ -107,7 +107,7 @@ final class TikTokFixtures
                 'seller_discount' => '5000',
                 'platform_discount' => '10000',
                 'shipping_fee_seller_discount' => '0',
-                'shipping_fee_platform_discount' => '0',
+                'shipping_fee_platform_discount' => '4000',
                 'tax' => '0',
                 'total_amount' => '205000',
             ],

@@ -119,7 +119,6 @@ final class LazadaMappers
 
         $shippingFee = self::money($order['shipping_fee'] ?? null);
         $shipSellerDiscount = self::money($order['shipping_fee_discount_seller'] ?? null);
-        $shipPlatformDiscount = self::money($order['shipping_fee_discount_platform'] ?? null);
         $sellerVoucher = self::money($order['voucher_seller'] ?? null);
         $platformVoucher = self::money($order['voucher_platform'] ?? null);
         $totalVoucher = self::money($order['voucher'] ?? null);
@@ -141,8 +140,11 @@ final class LazadaMappers
                 $sellerVoucher = $totalVoucher;
             }
         }
-        $grandTotal = self::money($order['price'] ?? null);
-        $itemTotal = max(0, $grandTotal - $shippingFee + $sellerVoucher + $platformVoucher);
+        // `price` từ Lazada CHỈ là tổng tiền HÀNG (item subtotal) — KHÔNG phải tổng đơn thật. Đã verify qua
+        // Seller Center thật 2026-07-16 (2 đơn khác nhau): "Tổng cộng" luôn = Tổng tiền + Phí ship − Giảm
+        // giá Lazada − Giảm giá Cửa hàng (bug cũ dùng thẳng `price` làm grandTotal ⇒ thiếu phí ship, thiếu
+        // trừ giảm giá — đơn 92.000đ báo thiếu mất 13.100đ so với thực nhận COD).
+        $itemTotal = self::money($order['price'] ?? null);
         if ($items !== []) {
             $sum = 0;
             foreach ($items as $i) {
@@ -152,6 +154,9 @@ final class LazadaMappers
                 $itemTotal = $sum;
             }
         }
+        // `shippingFee` sàn trả về đã NETTED sau mọi trợ giá (seller/platform) — cộng thẳng vào, KHÔNG trừ
+        // thêm `shipping_fee_discount_*` (đã phản ánh trong shippingFee, trừ lần nữa sẽ tính thiếu tiền).
+        $grandTotal = max(0, $itemTotal + $shippingFee - $sellerVoucher - $platformVoucher);
 
         $payMethod = (string) ($order['payment_method'] ?? '');
         $isCod = str_contains(strtolower($payMethod), 'cod') || str_contains(strtolower($payMethod), 'cash on delivery');
@@ -230,7 +235,9 @@ final class LazadaMappers
             currency: 'VND',
             itemTotal: $itemTotal,
             shippingFee: $shippingFee,
-            platformDiscount: $platformVoucher + $shipPlatformDiscount,
+            // `shipping_fee_discount_platform` là tiền sàn trợ giá phí ship cho KHÁCH (không phải tiền hoàn
+            // về shop) — KHÔNG gộp vào platformDiscount, xem cùng lý do ở TikTokMappers::order().
+            platformDiscount: $platformVoucher,
             sellerDiscount: $sellerVoucher + $shipSellerDiscount,
             tax: 0,
             codAmount: $isCod ? $grandTotal : 0,

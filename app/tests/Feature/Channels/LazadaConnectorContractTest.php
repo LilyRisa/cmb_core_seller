@@ -182,12 +182,15 @@ class LazadaConnectorContractTest extends TestCase
         $this->assertSame('Phường Bến Nghé', $o->shippingAddress['ward']);
         $this->assertSame('Giao giờ hành chính', $o->shippingAddress['note']);
         // money: VND đồng, no decimals
-        $this->assertSame(220000, $o->grandTotal);
+        // `price`=220000 KHÔNG phải grandTotal (chỉ là item subtotal thô, bị item-level sum ghi đè xuống
+        // 200000) — grandTotal đúng = itemTotal + shippingFee − sellerVoucher − platformVoucher
+        // = 200000 + 20000 − 2000 − 0 = 218000 (xem LazadaMappers::order()).
+        $this->assertSame(218000, $o->grandTotal);
         $this->assertSame(20000, $o->shippingFee);
         $this->assertSame(2000, $o->sellerDiscount);
         $this->assertSame(200000, $o->itemTotal);   // 2 items × 100000
         $this->assertTrue($o->isCod);
-        $this->assertSame(220000, $o->codAmount);
+        $this->assertSame(218000, $o->codAmount);   // codAmount = grandTotal khi COD
         // 2 item rows of the same SKU -> one line, quantity 2
         $this->assertCount(1, $o->items);
         $this->assertSame('AO-DEN-M', $o->items[0]->sellerSku);
@@ -223,6 +226,65 @@ class LazadaConnectorContractTest extends TestCase
         // KHÔNG dồn hết 20k vào seller — tách đúng theo item-level: sàn 15k, shop 5k.
         $this->assertSame(15000, $o->platformDiscount);
         $this->assertSame(5000, $o->sellerDiscount);
+    }
+
+    public function test_shipping_fee_platform_discount_is_not_added_to_platform_discount(): void
+    {
+        Http::fake([
+            '*/orders/items/get*' => Http::response($this->ok([
+                ['order_id' => 1003, 'order_items' => [
+                    ['order_item_id' => 1, 'sku' => 'SP-1', 'name' => 'SP 1', 'item_price' => 100000.00, 'paid_price' => 100000.00, 'voucher_platform' => 10000.00, 'voucher_seller' => 0.00, 'status' => 'pending'],
+                ]],
+            ])),
+            '*/orders/get*' => Http::response($this->ok([
+                'count' => 1,
+                'orders' => [[
+                    'order_id' => 1003, 'order_number' => 778, 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                    'price' => '100000.00', 'shipping_fee' => '0.00',
+                    // Sàn trợ giá phí ship cho khách (không phải tiền hoàn về shop) — KHÔNG được cộng vào platformDiscount.
+                    'shipping_fee_discount_platform' => '8000.00',
+                    'voucher_platform' => '10000.00', 'voucher_seller' => '0.00',
+                    'payment_method' => 'COD', 'statuses' => ['pending'],
+                    'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hồ Chí Minh', 'country' => 'Vietnam'],
+                ]],
+            ])),
+        ]);
+
+        $o = $this->connector()->fetchOrders($this->auth(), ['updatedFrom' => now()->subDay()])->items[0];
+        // 8k trợ giá ship KHÔNG được gộp vào platformDiscount — chỉ 10k voucher_platform (sản phẩm).
+        $this->assertSame(10000, $o->platformDiscount);
+    }
+
+    /**
+     * Số liệu THẬT đối chiếu trực tiếp Lazada Seller Center 2026-07-16 (đơn 530604924807019):
+     * Tổng tiền 92.000đ, Phí ship 17.700đ, Giảm giá Lazada 0đ, Giảm giá Cửa hàng 4.600đ ⇒ Tổng cộng 105.100đ
+     * (bug cũ trả về grandTotal=92.000đ — thiếu 13.100đ so với thực nhận COD).
+     */
+    public function test_grand_total_matches_real_lazada_seller_center_order(): void
+    {
+        Http::fake([
+            '*/orders/items/get*' => Http::response($this->ok([
+                ['order_id' => 1004, 'order_items' => [
+                    ['order_item_id' => 1, 'sku' => 'SP-1', 'name' => 'SP 1', 'item_price' => 92000.00, 'paid_price' => 92000.00, 'voucher_seller' => 4600.00, 'voucher_platform' => 0.00, 'status' => 'pending'],
+                ]],
+            ])),
+            '*/orders/get*' => Http::response($this->ok([
+                'count' => 1,
+                'orders' => [[
+                    'order_id' => 1004, 'order_number' => 530604924807019, 'created_at' => '2026-07-16 12:04:01 +0700', 'updated_at' => '2026-07-16 12:04:01 +0700',
+                    'price' => '92000.00', 'shipping_fee' => '17700.00', 'shipping_fee_original' => '37700.00',
+                    'shipping_fee_discount_platform' => '20000.00', 'shipping_fee_discount_seller' => '0.00',
+                    'voucher' => '4600.00', 'voucher_seller' => '4600.00', 'voucher_platform' => '0.00',
+                    'payment_method' => 'COD', 'statuses' => ['pending'],
+                    'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Cần Thơ', 'country' => 'Vietnam'],
+                ]],
+            ])),
+        ]);
+
+        $o = $this->connector()->fetchOrders($this->auth(), ['updatedFrom' => now()->subDay()])->items[0];
+        $this->assertSame(92000, $o->itemTotal);
+        $this->assertSame(17700, $o->shippingFee);
+        $this->assertSame(105100, $o->grandTotal);
     }
 
     public function test_fetch_order_detail(): void

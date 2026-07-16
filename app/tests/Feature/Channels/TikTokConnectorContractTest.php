@@ -106,7 +106,9 @@ class TikTokConnectorContractTest extends TestCase
         $this->assertSame(200000, $dto->itemTotal);
         $this->assertSame(20000, $dto->shippingFee);
         $this->assertSame(205000, $dto->grandTotal);
-        $this->assertSame(10000, $dto->platformDiscount);   // payment.platform_discount + payment.shipping_fee_platform_discount
+        // shipping_fee_platform_discount (4000) KHÔNG được gộp vào platformDiscount — đó là tiền sàn trợ giá
+        // ship cho khách (đã phản ánh ở shippingFee=0 phía TikTok), không phải tiền hoàn về cho shop.
+        $this->assertSame(10000, $dto->platformDiscount);   // = payment.platform_discount only
         $this->assertSame(5000, $dto->sellerDiscount);      // payment.seller_discount + payment.shipping_fee_seller_discount
         $this->assertTrue($dto->isCod);
         $this->assertSame(205000, $dto->codAmount);
