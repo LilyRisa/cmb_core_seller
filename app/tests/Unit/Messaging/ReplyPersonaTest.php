@@ -38,6 +38,10 @@ class ReplyPersonaTest extends TestCase
         // C: khách đã gửi địa chỉ + SĐT + xác nhận → cảm ơn + báo 2-4 ngày.
         $this->assertStringContainsString('2-4 ngày', $s);
         $this->assertStringContainsString('CHÚ Ý ĐIỆN THOẠI', $s);
+        // E: cấm gõ lại SĐT/địa chỉ khi xác nhận đơn — LLM có thể nhớ sai/gõ nhầm vài số khi
+        // tự diễn giải lại thành văn xuôi (bug thật: AI xác nhận đơn với SĐT khác hẳn số khách
+        // gửi dù đơn thật lưu đúng số — xem tenant 1, conversation 6141/6051).
+        $this->assertStringContainsString('KHÔNG gõ lại số điện thoại hoặc địa chỉ', $s);
     }
 
     public function test_instructions_append_buyer_name_and_extra(): void
