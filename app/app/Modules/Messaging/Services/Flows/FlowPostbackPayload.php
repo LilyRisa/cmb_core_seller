@@ -8,19 +8,22 @@ namespace CMBcoreSeller\Modules\Messaging\Services\Flows;
  * biệt postback flow với postback khác (get_started, persistent menu…). Facebook
  * giới hạn payload 1000 ký tự — JSON gọn này luôn dưới ngưỡng.
  *
- * `n` = id node đã gửi bộ nút (để stale-guard); `h` = handle = id nút (khớp
- * `sourceHandle` của edge ra ⇒ engine resume theo đúng nhánh).
+ * `f` = id flow (để tự định tuyến khi không còn run "waiting" nào khớp — xem
+ * AdvanceFlowOnPostback::handle, nhánh revive); `n` = id node đã gửi bộ nút (để
+ * stale-guard); `h` = handle = id nút (khớp `sourceHandle` của edge ra ⇒ engine
+ * resume theo đúng nhánh). `f` optional khi decode — payload cũ (gửi trước khi
+ * thêm field này) đã nằm sẵn trong tin nhắn cũ của khách, vẫn phải decode được.
  */
 final class FlowPostbackPayload
 {
     private const MARKER = 'flow';
 
-    public static function encode(string $nodeId, string $handle): string
+    public static function encode(string $flowId, string $nodeId, string $handle): string
     {
-        return (string) json_encode(['t' => self::MARKER, 'n' => $nodeId, 'h' => $handle]);
+        return (string) json_encode(['t' => self::MARKER, 'f' => $flowId, 'n' => $nodeId, 'h' => $handle]);
     }
 
-    /** @return array{node_id:string, handle:string}|null */
+    /** @return array{flow_id:?string, node_id:string, handle:string}|null */
     public static function decode(string $payload): ?array
     {
         $data = json_decode($payload, true);
@@ -34,6 +37,8 @@ final class FlowPostbackPayload
             return null;
         }
 
-        return ['node_id' => $nodeId, 'handle' => $handle];
+        $flowId = isset($data['f']) && $data['f'] !== '' ? (string) $data['f'] : null;
+
+        return ['flow_id' => $flowId, 'node_id' => $nodeId, 'handle' => $handle];
     }
 }

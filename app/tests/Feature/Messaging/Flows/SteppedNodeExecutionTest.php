@@ -203,8 +203,8 @@ class SteppedNodeExecutionTest extends TestCase
             ->first();
         $this->assertNotNull($interactive);
         $payloads = array_column($interactive->meta['interactive']['buttons'], 'payload');
-        $this->assertContains(FlowPostbackPayload::encode('n_ask', 'b_buy'), $payloads);
-        $this->assertContains(FlowPostbackPayload::encode('n_ask', 'b_ship'), $payloads);
+        $this->assertContains(FlowPostbackPayload::encode((string) $run->flow_id, 'n_ask', 'b_buy'), $payloads);
+        $this->assertContains(FlowPostbackPayload::encode((string) $run->flow_id, 'n_ask', 'b_ship'), $payloads);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

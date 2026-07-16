@@ -70,7 +70,7 @@ class SendButtonsStep implements StepExecutor
                 // SendMessageNodeExecutor khi duyệt steps). Fallback về step.id nếu bước
                 // được gọi trực tiếp ngoài node executor (e.g. trong unit test).
                 // Phase 2A: send_buttons là bước CUỐI ⇒ không cần step index trong payload.
-                $buttons[] = ['type' => 'postback', 'title' => $label, 'payload' => FlowPostbackPayload::encode($ctx->currentNodeId ?? $step->id, $handle)];
+                $buttons[] = ['type' => 'postback', 'title' => $label, 'payload' => FlowPostbackPayload::encode((string) $ctx->run->flow_id, $ctx->currentNodeId ?? $step->id, $handle)];
             }
         }
 

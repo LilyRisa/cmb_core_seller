@@ -62,7 +62,7 @@ class SendInteractiveNodeExecutor implements NodeExecutor
                 $buttons[] = ['type' => 'url', 'title' => $label, 'url' => (string) $b['url']];
             } else {
                 $handle = (string) ($b['id'] ?? $label);
-                $buttons[] = ['type' => 'postback', 'title' => $label, 'payload' => FlowPostbackPayload::encode($node->id, $handle)];
+                $buttons[] = ['type' => 'postback', 'title' => $label, 'payload' => FlowPostbackPayload::encode((string) $ctx->run->flow_id, $node->id, $handle)];
             }
         }
 

@@ -119,6 +119,40 @@ class FlowEngine
         return $this->walk($run, $conv, $graph, $resumeFrom, $inboundBody);
     }
 
+    /**
+     * Bấm nút nhưng KHÔNG còn run `waiting` nào khớp (đã ended/failed vì lý do khác —
+     * xem AdvanceFlowOnPostback::handle). Payload nút bấm tự mang `flow_id` + node/handle
+     * gốc nên đủ dữ kiện để tự định tuyến lại, không cần run cũ còn sống (khớp cách
+     * ChatbotX xử lý button click: luôn tự đủ dữ kiện, không phụ thuộc bookkeeping
+     * "đang chờ"). Dựng run MỚI, đi thẳng theo cạnh (nodeId, handle) — không chạy lại
+     * node đã gửi nút (đã gửi rồi, tránh gửi trùng).
+     */
+    public function revive(AutomationFlow $flow, Conversation $conv, string $nodeId, string $handle): ?FlowRun
+    {
+        $graph = new FlowGraph((array) $flow->graph);
+        $next = $graph->nextNodeId($nodeId, $handle);
+        if ($next === null) {
+            return null;
+        }
+
+        try {
+            $run = FlowRun::create([
+                'tenant_id' => $conv->tenant_id,
+                'flow_id' => $flow->id,
+                'conversation_id' => $conv->id,
+                'status' => FlowRun::STATUS_ACTIVE,
+                'context' => [],
+                'entered_at' => Carbon::now(),
+            ]);
+        } catch (QueryException) {
+            // Run active/waiting khác đã được tạo song song (race) — bỏ qua, không
+            // dựng thêm bản thứ hai đè lên.
+            return null;
+        }
+
+        return $this->walk($run, $conv, $graph, $next, null);
+    }
+
     private function walk(FlowRun $run, Conversation $conv, FlowGraph $graph, string $startNodeId, ?string $inboundBody): FlowRun
     {
         $nodeId = $startNodeId;

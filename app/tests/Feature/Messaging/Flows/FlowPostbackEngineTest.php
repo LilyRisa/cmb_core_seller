@@ -101,8 +101,8 @@ class FlowPostbackEngineTest extends TestCase
         $this->assertNotNull($msg);
         $this->assertSame('Bạn cần gì ạ?', $msg->body);
         $payloads = array_column($msg->meta['interactive']['buttons'], 'payload');
-        $this->assertContains(FlowPostbackPayload::encode('ask', 'b_buy'), $payloads);
-        $this->assertContains(FlowPostbackPayload::encode('ask', 'b_ship'), $payloads);
+        $this->assertContains(FlowPostbackPayload::encode((string) $flow->id, 'ask', 'b_buy'), $payloads);
+        $this->assertContains(FlowPostbackPayload::encode((string) $flow->id, 'ask', 'b_ship'), $payloads);
         // Nút url không mang payload postback.
         $urlButton = collect($msg->meta['interactive']['buttons'])->firstWhere('type', 'url');
         $this->assertSame('https://shop.vn', $urlButton['url']);
@@ -166,12 +166,59 @@ class FlowPostbackEngineTest extends TestCase
 
         // Postback trỏ node KHÁC (vd node cũ) ⇒ stale guard ⇒ không resume.
         $listener = new AdvanceFlowOnPostback($engine);
-        $listener->handle(new PostbackReceived((int) $conv->id, FlowPostbackPayload::encode('some_old_node', 'b_buy')));
+        $listener->handle(new PostbackReceived((int) $conv->id, FlowPostbackPayload::encode((string) $flow->id, 'some_old_node', 'b_buy')));
 
         $this->assertSame(FlowRun::STATUS_WAITING, $run->fresh()->status);
         $this->assertSame('ask', $run->fresh()->current_node_id);
         $this->assertSame(0, Message::withoutGlobalScope(TenantScope::class)->where('conversation_id', $conv->id)
             ->whereIn('body', ['Mời bạn đặt hàng', 'Phí ship 30k toàn quốc.'])->count());
+    }
+
+    public function test_postback_revives_flow_when_waiting_run_already_ended(): void
+    {
+        // Kịch bản thật đã xảy ra ở prod (tenant Enko Store): webhook postback đến ĐÚNG
+        // và ĐÚNG LÚC, nhưng run "waiting" đã kết thúc trước đó vì lý do khác (vd đã hết
+        // hạn / bị dọn). Trước đây AdvanceFlowOnPostback chỉ tìm run đang waiting đúng
+        // node ⇒ không thấy ⇒ bỏ qua âm thầm, khách bấm nút mà không có phản hồi.
+        // Payload nút bấm giờ tự mang flow_id ⇒ có thể tự định tuyến lại (revive) mà
+        // không cần run cũ, giống cách ChatbotX xử lý button click (tự đủ dữ kiện).
+        Queue::fake();
+        $conv = $this->conv();
+        $flow = $this->flow($this->buttonGraph());
+        $engine = app(FlowEngine::class);
+
+        $run = $engine->start($flow, $conv, inboundBody: 'hi');
+        $this->assertSame(FlowRun::STATUS_WAITING, $run->fresh()->status);
+
+        $msg = Message::withoutGlobalScope(TenantScope::class)
+            ->where('conversation_id', $conv->id)->where('kind', Message::KIND_INTERACTIVE)->first();
+        $payload = collect($msg->meta['interactive']['buttons'])->firstWhere('title', 'Phí ship')['payload'];
+
+        // Giả lập run đã kết thúc vì lý do khác (không phải nhánh vừa fix ở FlowEngine).
+        $run->fresh()->update(['status' => FlowRun::STATUS_ENDED]);
+
+        $listener = new AdvanceFlowOnPostback($engine);
+        $listener->handle(new PostbackReceived((int) $conv->id, $payload));
+
+        $this->assertSame(1, Message::withoutGlobalScope(TenantScope::class)->where('conversation_id', $conv->id)->where('body', 'Phí ship 30k toàn quốc.')->count());
+    }
+
+    public function test_postback_with_legacy_payload_missing_flow_id_is_ignored_when_no_waiting_run(): void
+    {
+        // Payload cũ (gửi trước khi thêm field flow_id) không đủ dữ kiện để tự revive
+        // ⇒ giữ hành vi cũ: không có run waiting khớp thì bỏ qua, không ném lỗi.
+        Queue::fake();
+        $conv = $this->conv();
+        $flow = $this->flow($this->buttonGraph());
+        $engine = app(FlowEngine::class);
+        $run = $engine->start($flow, $conv, inboundBody: 'hi');
+        $run->fresh()->update(['status' => FlowRun::STATUS_ENDED]);
+
+        $legacyPayload = (string) json_encode(['t' => 'flow', 'n' => 'ask', 'h' => 'b_ship']);
+        $listener = new AdvanceFlowOnPostback($engine);
+        $listener->handle(new PostbackReceived((int) $conv->id, $legacyPayload));
+
+        $this->assertSame(0, Message::withoutGlobalScope(TenantScope::class)->where('conversation_id', $conv->id)->where('body', 'Phí ship 30k toàn quốc.')->count());
     }
 
     public function test_unsupported_provider_fails_node_without_sending(): void
