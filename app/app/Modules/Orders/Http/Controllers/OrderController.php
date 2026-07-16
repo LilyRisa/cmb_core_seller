@@ -343,8 +343,7 @@ class OrderController extends Controller
         $this->authorizeView($request);
 
         $order = Order::query()->with(['items', 'statusHistory', 'shipments'])->findOrFail($id);
-        $profit->annotateLoaded($order, $tenant->get()?->settings);
-        $this->annotateOutOfStock(collect([$order]));
+        $this->annotateFullDetail($order, $tenant, $profit);
 
         return response()->json(['data' => new OrderResource($order)]);
     }
@@ -473,7 +472,7 @@ class OrderController extends Controller
     }
 
     /** POST /api/v1/orders/{id}/tags  { add?: string[], remove?: string[] } */
-    public function updateTags(Request $request, int $id): JsonResponse
+    public function updateTags(Request $request, int $id, CurrentTenant $tenant, OrderProfitService $profit): JsonResponse
     {
         $this->authorizeUpdate($request);
         $data = $request->validate([
@@ -486,20 +485,36 @@ class OrderController extends Controller
             ->merge($data['add'] ?? [])->reject(fn ($t) => in_array($t, $data['remove'] ?? [], true))
             ->map(fn ($t) => trim((string) $t))->filter()->unique()->values()->all();
         $order->forceFill(['tags' => $tags])->save();
+        $this->annotateFullDetail($order, $tenant, $profit);
 
-        return response()->json(['data' => new OrderResource($order->loadCount('items'))]);
+        return response()->json(['data' => new OrderResource($order)]);
     }
 
     /** PATCH /api/v1/orders/{id}/note  { note: string|null } */
-    public function updateNote(Request $request, int $id): JsonResponse
+    public function updateNote(Request $request, int $id, CurrentTenant $tenant, OrderProfitService $profit): JsonResponse
     {
         $this->authorizeUpdate($request);
         $data = $request->validate(['note' => ['nullable', 'string', 'max:2000']]);
 
         $order = Order::query()->findOrFail($id);
         $order->forceFill(['note' => $data['note'] ?: null])->save();
+        $this->annotateFullDetail($order, $tenant, $profit);
 
-        return response()->json(['data' => new OrderResource($order->loadCount('items'))]);
+        return response()->json(['data' => new OrderResource($order)]);
+    }
+
+    /**
+     * Nạp đủ quan hệ + số liệu như `show()` (items/status_history/shipments + lợi
+     * nhuận ước tính + cờ âm tồn). Dùng chung cho mọi endpoint trả về 1 Order đầy đủ
+     * để FE `setQueryData` không bị mất ảnh/thông tin đơn (bug thật: updateTags/
+     * updateNote trước đây chỉ loadCount('items') ⇒ response thiếu items/thumbnail/
+     * shipment, ghi đè cache làm màn chi tiết trắng xoá tới khi mở lại).
+     */
+    private function annotateFullDetail(Order $order, CurrentTenant $tenant, OrderProfitService $profit): void
+    {
+        $order->loadMissing(['items', 'statusHistory', 'shipments']);
+        $profit->annotateLoaded($order, $tenant->get()?->settings);
+        $this->annotateOutOfStock(collect([$order]));
     }
 
     // --- helpers -------------------------------------------------------------

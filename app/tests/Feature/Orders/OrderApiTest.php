@@ -160,6 +160,24 @@ class OrderApiTest extends TestCase
         $this->assertSame('Gọi trước khi giao', $order->fresh()->note);
     }
 
+    public function test_update_tags_response_still_includes_full_order_detail(): void
+    {
+        // Bug thật: sau khi thêm nhãn, ảnh sản phẩm + thông tin đơn biến mất khỏi màn
+        // chi tiết cho tới khi mở lại trang. Root cause: updateTags() chỉ loadCount('items')
+        // thay vì load đủ quan hệ như show() ⇒ response thiếu items/thumbnail/status_history.
+        $order = Order::withoutGlobalScope(TenantScope::class)->where('order_number', 'TT-1001')->first();
+        OrderItem::withoutGlobalScope(TenantScope::class)->where('order_id', $order->getKey())
+            ->update(['image' => 'https://example.test/product.jpg']);
+
+        $res = $this->actingAs($this->user)->withHeaders($this->header())
+            ->postJson("/api/v1/orders/{$order->getKey()}/tags", ['add' => ['urgent']])
+            ->assertOk();
+
+        $res->assertJsonPath('data.thumbnail', 'https://example.test/product.jpg');
+        $res->assertJsonCount(1, 'data.items');
+        $res->assertJsonPath('data.items.0.name', 'Item TT-1001');
+    }
+
     public function test_viewer_cannot_update_tags(): void
     {
         $viewer = User::factory()->create();
