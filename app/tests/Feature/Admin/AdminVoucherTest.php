@@ -172,4 +172,33 @@ class AdminVoucherTest extends TestCase
                 'code' => 'ONESHOT', 'plan_code' => 'pro', 'cycle' => 'monthly',
             ])->assertStatus(422)->assertJsonPath('error.code', 'VOUCHER_EXHAUSTED');
     }
+
+    public function test_super_admin_creates_voucher_restricted_to_tenants(): void
+    {
+        $admin = AdminUser::factory()->create();
+        $tenant = Tenant::create(['name' => 'G']);
+
+        $this->actingAs($admin, 'admin_web')->postJson('/api/v1/admin/vouchers', [
+            'code' => 'VIPCODE', 'name' => 'Riêng khách VIP', 'kind' => 'percent', 'value' => 30,
+            'valid_tenant_ids' => [$tenant->getKey()],
+        ])->assertCreated()->assertJsonPath('data.valid_tenant_ids', [$tenant->getKey()]);
+    }
+
+    public function test_voucher_restricted_to_other_tenant_rejects_at_validate(): void
+    {
+        $owner = User::factory()->create();
+        $allowedTenant = Tenant::create(['name' => 'H1']);
+        $otherTenant = Tenant::create(['name' => 'H2']);
+        $otherTenant->users()->attach($owner->getKey(), ['role' => Role::Owner->value]);
+
+        Voucher::query()->create([
+            'code' => 'VIPONLY', 'name' => 'Riêng 1 tenant', 'kind' => 'percent', 'value' => 10,
+            'valid_tenant_ids' => [$allowedTenant->getKey()],
+        ]);
+
+        $this->actingAs($owner)->withHeader('X-Tenant-Id', (string) $otherTenant->getKey())
+            ->postJson('/api/v1/billing/vouchers/validate', [
+                'code' => 'VIPONLY', 'plan_code' => 'pro', 'cycle' => 'monthly',
+            ])->assertStatus(422)->assertJsonPath('error.code', 'VOUCHER_NOT_FOR_TENANT');
+    }
 }

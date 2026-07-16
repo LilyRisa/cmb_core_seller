@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
  * @property string $kind percent|fixed|free_days|plan_upgrade
  * @property int $value % cho percent, VND cho fixed, days cho free_days, plan_id cho plan_upgrade
  * @property array|null $valid_plans
+ * @property array|null $valid_tenant_ids null/[] = mọi tenant; nếu có ⇒ chỉ tenant trong danh sách redeem/áp được
  * @property int $max_redemptions -1 = unlimited
  * @property int $redemption_count
  * @property Carbon|null $starts_at
@@ -43,7 +44,7 @@ class Voucher extends Model
 
     protected $fillable = [
         'code', 'name', 'description', 'kind', 'value',
-        'valid_plans', 'max_redemptions', 'redemption_count',
+        'valid_plans', 'valid_tenant_ids', 'max_redemptions', 'redemption_count',
         'starts_at', 'expires_at', 'is_active', 'created_by_user_id', 'meta',
     ];
 
@@ -52,6 +53,7 @@ class Voucher extends Model
         return [
             'value' => 'integer',
             'valid_plans' => 'array',
+            'valid_tenant_ids' => 'array',
             'max_redemptions' => 'integer',
             'redemption_count' => 'integer',
             'starts_at' => 'datetime',
@@ -98,5 +100,16 @@ class Voucher extends Model
         }
 
         return in_array($planCode, $plans, true);
+    }
+
+    /** Voucher chỉ áp với tenant trong `valid_tenant_ids`. Null/empty ⇒ mọi tenant. */
+    public function isValidForTenant(int $tenantId): bool
+    {
+        $ids = $this->valid_tenant_ids;
+        if (! is_array($ids) || $ids === []) {
+            return true;
+        }
+
+        return in_array($tenantId, $ids, true);
     }
 }

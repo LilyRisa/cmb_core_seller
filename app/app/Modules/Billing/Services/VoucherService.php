@@ -13,13 +13,17 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Voucher engine — SPEC 0023.
+ * Voucher engine — SPEC 0023 + SPEC 0032.
  *
- * 2 luồng:
+ * 3 luồng:
  *   - `redeemAtCheckout(Voucher, Invoice, userId)` — user redeem ở checkout (kind=percent|fixed).
  *     Áp discount line vào invoice + tăng counter + ghi redemption.
- *   - `grant(Voucher, tenantId, adminUserId)` — admin grant trực tiếp (kind=free_days|plan_upgrade).
- *     Áp lên subscription (extend / swap plan) + ghi redemption.
+ *   - `redeemGift(code, tenantId, userId)` — tenant TỰ nhập mã (kind=free_days|plan_upgrade|ai_credits)
+ *     ⇒ áp ngay lên subscription/ví, không cần admin thao tác. Mỗi tenant chỉ tự redeem được 1 lần/mã.
+ *   - `grant(Voucher, tenantId, adminUserId)` — admin grant trực tiếp nhắm 1 tenant cụ thể
+ *     (kind=free_days|plan_upgrade|ai_credits), có thể lặp lại nhiều lần (không dedupe theo tenant).
+ *
+ * `redeemGift` và `grant` dùng chung `applyGiftEffect()` để áp hiệu lực lên subscription/ví.
  *
  * Mọi method idempotent ở mức "1 voucher cho 1 invoice" (partial unique index ở DB).
  */
@@ -31,15 +35,17 @@ class VoucherService
     ) {}
 
     /**
-     * User tự nhập mã tặng lượt AI (KIND_AI_CREDITS) ⇒ cộng vào ví credit. Mỗi tenant chỉ nhận 1 lần/mã.
+     * Tenant tự nhập mã "Tặng gói" / "Tặng ngày" / "Tặng lượt AI" ⇒ áp ngay lên subscription/ví,
+     * không cần admin thao tác thủ công. Mã giảm giá checkout (percent|fixed) bị từ chối — loại đó chỉ
+     * áp được ở trang gói lúc thanh toán (`redeemAtCheckout`). Mỗi tenant chỉ tự redeem được 1 lần/mã.
      *
-     * @return array{granted:int, balance:int}
+     * @return array<string, mixed> luôn có key `kind`; các key còn lại tuỳ kind (xem `applyGiftEffect`).
      */
-    public function redeemAiCredits(string $code, int $tenantId, ?int $userId): array
+    public function redeemGift(string $code, int $tenantId, ?int $userId): array
     {
-        $voucher = $this->validate($code);
-        if ($voucher->kind !== Voucher::KIND_AI_CREDITS) {
-            $this->fail('VOUCHER_KIND_MISMATCH', 'Mã này không phải mã tặng lượt AI.');
+        $voucher = $this->validate($code, null, $tenantId);
+        if ($voucher->isRedeemableAtCheckout()) {
+            $this->fail('VOUCHER_NOT_REDEEMABLE', 'Mã giảm giá gói hãy áp ở trang gói khi thanh toán.');
         }
 
         return DB::transaction(function () use ($voucher, $tenantId, $userId): array {
@@ -56,25 +62,27 @@ class VoucherService
                 $this->fail('VOUCHER_ALREADY_REDEEMED', 'Gian hàng đã dùng mã này rồi.');
             }
 
-            $granted = $this->aiCredits->grantPurchase($tenantId, (int) $locked->value);
+            $effect = $this->applyGiftEffect($locked, $tenantId, null);
+
             VoucherRedemption::query()->create([
                 'voucher_id' => $locked->getKey(),
                 'tenant_id' => $tenantId,
                 'user_id' => $userId,
                 'invoice_id' => null,
+                'subscription_id' => $effect['subscription']?->getKey(),
                 'discount_amount' => 0,
-                'granted_days' => 0,
+                'granted_days' => $locked->kind === Voucher::KIND_FREE_DAYS ? $locked->value : 0,
             ]);
             $locked->increment('redemption_count');
 
-            return ['granted' => $granted, 'balance' => $this->aiCredits->wallet($tenantId)->purchased_balance];
+            return $effect['applied'];
         });
     }
 
     /**
      * Tìm + validate voucher theo code. Ném `ValidationException` với code envelope nếu hỏng.
      */
-    public function validate(string $code, ?string $planCode = null): Voucher
+    public function validate(string $code, ?string $planCode = null, ?int $tenantId = null): Voucher
     {
         $voucher = Voucher::query()->where('code', $code)->first();
         if ($voucher === null || ! $voucher->is_active) {
@@ -88,6 +96,9 @@ class VoucherService
         }
         if ($planCode !== null && ! $voucher->isValidForPlan($planCode)) {
             $this->fail('VOUCHER_NOT_FOR_PLAN', 'Mã ưu đãi không áp dụng cho gói này.');
+        }
+        if ($tenantId !== null && ! $voucher->isValidForTenant($tenantId)) {
+            $this->fail('VOUCHER_NOT_FOR_TENANT', 'Mã ưu đãi không áp dụng cho gian hàng này.');
         }
 
         return $voucher;
@@ -196,58 +207,8 @@ class VoucherService
                 $this->fail('VOUCHER_EXHAUSTED', 'Voucher hết lượt.');
             }
 
-            $sub = $this->subscriptions->currentFor($tenantId);
-            $applied = [];
-
-            if ($locked->kind === Voucher::KIND_FREE_DAYS) {
-                if ($sub === null) {
-                    $this->fail('NO_ACTIVE_SUBSCRIPTION', 'Tenant chưa có subscription để extend.');
-                }
-                $days = max(1, $locked->value);
-                $base = $sub->current_period_end->isFuture()
-                    ? $sub->current_period_end : now();
-                $sub->forceFill([
-                    'current_period_end' => $base->copy()->addDays($days),
-                    'meta' => array_merge((array) $sub->meta, [
-                        'last_voucher_code' => $locked->code,
-                        'last_voucher_grant_by' => $adminUserId,
-                    ]),
-                ])->save();
-                $applied = ['kind' => 'free_days', 'days' => $days, 'new_period_end' => $sub->current_period_end->toIso8601String()];
-            } elseif ($locked->kind === Voucher::KIND_PLAN_UPGRADE) {
-                $plan = Plan::query()->where('id', $locked->value)->where('is_active', true)->first();
-                if ($plan === null) {
-                    $this->fail('INVALID_VOUCHER', 'Voucher trỏ tới plan không tồn tại.');
-                }
-                $days = (int) ($locked->meta['duration_days'] ?? 30);
-                $now = now();
-                if ($sub !== null) {
-                    $sub->forceFill([
-                        'status' => Subscription::STATUS_CANCELLED,
-                        'cancelled_at' => $now,
-                        'cancel_at' => $now,
-                        'ended_at' => $now,
-                    ])->save();
-                }
-                $sub = Subscription::query()->withoutGlobalScope(TenantScope::class)->create([
-                    'tenant_id' => $tenantId,
-                    'plan_id' => $plan->getKey(),
-                    'status' => Subscription::STATUS_TRIALING,        // tặng ⇒ trial trên gói cao
-                    'billing_cycle' => Subscription::CYCLE_TRIAL,
-                    'current_period_start' => $now,
-                    'current_period_end' => $now->copy()->addDays($days),
-                    'meta' => [
-                        'granted_by_voucher' => $locked->code,
-                        'granted_by_admin' => $adminUserId,
-                        'duration_days' => $days,
-                    ],
-                ]);
-                $applied = ['kind' => 'plan_upgrade', 'plan_code' => $plan->code, 'days' => $days];
-            } elseif ($locked->kind === Voucher::KIND_AI_CREDITS) {
-                // SPEC 0032 — admin tặng lượt AI trực tiếp cho 1 cửa hàng.
-                $granted = $this->aiCredits->grantPurchase($tenantId, (int) $locked->value);
-                $applied = ['kind' => 'ai_credits', 'granted' => $granted];
-            }
+            $effect = $this->applyGiftEffect($locked, $tenantId, $adminUserId);
+            $sub = $effect['subscription'];
 
             $redemption = VoucherRedemption::query()->create([
                 'voucher_id' => $locked->getKey(),
@@ -262,8 +223,72 @@ class VoucherService
 
             $locked->increment('redemption_count');
 
-            return ['redemption' => $redemption, 'subscription' => $sub, 'applied' => $applied];
+            return ['redemption' => $redemption, 'subscription' => $sub, 'applied' => $effect['applied']];
         });
+    }
+
+    /**
+     * Áp hiệu lực voucher "gift" (free_days/plan_upgrade/ai_credits) lên subscription/ví của tenant.
+     * Dùng chung giữa `redeemGift()` (tenant tự redeem, $adminUserId=null) và `grant()` (admin, có
+     * $adminUserId) — chỉ khác nhau ở việc ai đứng sau thao tác, hiệu lực áp dụng giống hệt nhau.
+     *
+     * @return array{subscription: Subscription|null, applied: array<string, mixed>}
+     */
+    private function applyGiftEffect(Voucher $locked, int $tenantId, ?int $adminUserId): array
+    {
+        $sub = $this->subscriptions->currentFor($tenantId);
+        $applied = [];
+
+        if ($locked->kind === Voucher::KIND_FREE_DAYS) {
+            if ($sub === null) {
+                $this->fail('NO_ACTIVE_SUBSCRIPTION', 'Chưa có subscription để gia hạn.');
+            }
+            $days = max(1, $locked->value);
+            $base = $sub->current_period_end->isFuture()
+                ? $sub->current_period_end : now();
+            $sub->forceFill([
+                'current_period_end' => $base->copy()->addDays($days),
+                'meta' => array_merge((array) $sub->meta, [
+                    'last_voucher_code' => $locked->code,
+                    'last_voucher_grant_by' => $adminUserId,
+                ]),
+            ])->save();
+            $applied = ['kind' => 'free_days', 'days' => $days, 'new_period_end' => $sub->current_period_end->toIso8601String()];
+        } elseif ($locked->kind === Voucher::KIND_PLAN_UPGRADE) {
+            $plan = Plan::query()->where('id', $locked->value)->where('is_active', true)->first();
+            if ($plan === null) {
+                $this->fail('INVALID_VOUCHER', 'Voucher trỏ tới plan không tồn tại.');
+            }
+            $days = (int) ($locked->meta['duration_days'] ?? 30);
+            $now = now();
+            if ($sub !== null) {
+                $sub->forceFill([
+                    'status' => Subscription::STATUS_CANCELLED,
+                    'cancelled_at' => $now,
+                    'cancel_at' => $now,
+                    'ended_at' => $now,
+                ])->save();
+            }
+            $sub = Subscription::query()->withoutGlobalScope(TenantScope::class)->create([
+                'tenant_id' => $tenantId,
+                'plan_id' => $plan->getKey(),
+                'status' => Subscription::STATUS_TRIALING,        // tặng ⇒ trial trên gói cao
+                'billing_cycle' => Subscription::CYCLE_TRIAL,
+                'current_period_start' => $now,
+                'current_period_end' => $now->copy()->addDays($days),
+                'meta' => [
+                    'granted_by_voucher' => $locked->code,
+                    'granted_by_admin' => $adminUserId,
+                    'duration_days' => $days,
+                ],
+            ]);
+            $applied = ['kind' => 'plan_upgrade', 'plan_code' => $plan->code, 'plan_name' => $plan->name, 'days' => $days];
+        } elseif ($locked->kind === Voucher::KIND_AI_CREDITS) {
+            $granted = $this->aiCredits->grantPurchase($tenantId, (int) $locked->value);
+            $applied = ['kind' => 'ai_credits', 'granted' => $granted, 'balance' => $this->aiCredits->wallet($tenantId)->purchased_balance];
+        }
+
+        return ['subscription' => $sub, 'applied' => $applied];
     }
 
     /**

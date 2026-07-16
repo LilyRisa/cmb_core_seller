@@ -233,14 +233,24 @@ export function useBuyAiCredits() {
     });
 }
 
-/** Nhập mã tặng lượt AI ⇒ cộng vào ví credit (SPEC 0032). */
+export interface VoucherGiftResult {
+    kind: 'ai_credits' | 'free_days' | 'plan_upgrade';
+    granted?: number;
+    balance?: number;
+    days?: number;
+    new_period_end?: string;
+    plan_code?: PlanCode;
+    plan_name?: string;
+}
+
+/** Nhập mã Tặng gói/Tặng ngày/Tặng lượt AI ⇒ áp ngay lên subscription/ví (SPEC 0023 + 0032). */
 export function useRedeemVoucher() {
     const api = useScopedApi();
     const qc = useQueryClient();
     const tenantId = useCurrentTenantId();
     return useMutation({
         mutationFn: async (code: string) =>
-            (await api!.post<{ data: { granted: number; balance: number } }>('/billing/vouchers/redeem', { code })).data.data,
+            (await api!.post<{ data: VoucherGiftResult }>('/billing/vouchers/redeem', { code })).data.data,
         onSuccess: () => qc.invalidateQueries({ queryKey: ['billing', tenantId] }),
     });
 }

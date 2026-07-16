@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import {
-    App, Button, Card, Drawer, Form, Input, InputNumber, Modal,
+    App, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Modal,
     Radio, Select, Space, Table, Tag, Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import type { Dayjs } from 'dayjs';
 import {
     GiftOutlined, PercentageOutlined, ClockCircleOutlined, RocketOutlined,
     PlusOutlined, StopOutlined, SendOutlined, ReloadOutlined, ThunderboltOutlined,
@@ -172,7 +173,15 @@ function CreateVoucherModal({ open, onClose }: { open: boolean; onClose: () => v
                 layout="vertical"
                 initialValues={{ kind: 'percent' as VoucherKind, max_redemptions: -1 }}
                 onFinish={(v) => {
-                    create.mutate(v, {
+                    const expiresAt = v.expires_at as Dayjs | undefined;
+                    const tenantIds = String(v.valid_tenant_ids ?? '').trim();
+                    create.mutate({
+                        ...v,
+                        expires_at: expiresAt ? expiresAt.toISOString() : undefined,
+                        valid_tenant_ids: tenantIds === ''
+                            ? undefined
+                            : tenantIds.split(',').map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0),
+                    }, {
                         onSuccess: () => { message.success('Đã tạo voucher.'); form.resetFields(); onClose(); },
                         onError: (e) => message.error(errorMessage(e, 'Không tạo được.')),
                     });
@@ -224,8 +233,11 @@ function CreateVoucherModal({ open, onClose }: { open: boolean; onClose: () => v
                 <Form.Item name="max_redemptions" label="Tối đa lượt dùng (−1 = không giới hạn)">
                     <InputNumber style={{ width: '100%' }} />
                 </Form.Item>
-                <Form.Item name="expires_at" label="Hết hạn (ISO date, để trống = vĩnh viễn)">
-                    <Input placeholder="2026-12-31T23:59:59Z" />
+                <Form.Item name="expires_at" label="Hết hạn (để trống = vĩnh viễn)">
+                    <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
+                </Form.Item>
+                <Form.Item name="valid_tenant_ids" label="Chỉ áp dụng cho tenant ID cụ thể (cách bằng dấu phẩy, để trống = mọi tenant)">
+                    <Input placeholder="VD: 12, 34" />
                 </Form.Item>
                 <Form.Item name="description" label="Ghi chú nội bộ">
                     <Input.TextArea rows={2} />
@@ -269,6 +281,11 @@ function VoucherDetailDrawer({ voucherId, onClose }: { voucherId: number | null;
                             }</strong></Typography.Text>
                             <Typography.Text>Đã dùng: <strong>{data.redemption_count}{data.max_redemptions >= 0 ? `/${data.max_redemptions}` : ''}</strong></Typography.Text>
                         </Space>
+                        <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
+                            {data.valid_tenant_ids.length > 0
+                                ? `Chỉ áp dụng cho tenant: ${data.valid_tenant_ids.join(', ')}`
+                                : 'Áp dụng cho mọi tenant.'}
+                        </Typography.Paragraph>
                     </Card>
 
                     {(data.kind === 'free_days' || data.kind === 'plan_upgrade') && (

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { App as AntApp, Button, Input, Modal, Space, Tag, Tooltip, Typography } from 'antd';
 import { CrownOutlined, GiftOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 import { useRedeemVoucher, useSubscription } from '@/lib/billing';
 
 const { Text } = Typography;
@@ -54,7 +55,12 @@ function VoucherModal({ open, onClose }: { open: boolean; onClose: () => void })
         if (!c) return;
         redeem.mutate(c, {
             onSuccess: (r) => {
-                message.success(`Đã nhận ${r.granted} lượt AI! (ví: ${r.balance} lượt đã mua/tặng)`);
+                const msg = r.kind === 'ai_credits'
+                    ? `Đã nhận ${r.granted} lượt AI! (ví: ${r.balance} lượt đã mua/tặng)`
+                    : r.kind === 'free_days'
+                        ? `Đã gia hạn thêm ${r.days} ngày! Hết hạn mới: ${formatDate(r.new_period_end)}`
+                        : `Đã nâng lên gói ${r.plan_name} — dùng thử ${r.days} ngày!`;
+                message.success(msg);
                 setCode('');
                 onClose();
             },
@@ -65,7 +71,7 @@ function VoucherModal({ open, onClose }: { open: boolean; onClose: () => void })
     return (
         <Modal title="Nhập mã ưu đãi" open={open} onCancel={onClose} okText="Áp dụng"
             confirmLoading={redeem.isPending} onOk={submit}>
-            <Text type="secondary">Nhập mã <b>tặng lượt AI</b> để cộng ngay vào ví. Mã giảm giá gói hãy áp ở trang gói khi thanh toán.</Text>
+            <Text type="secondary">Nhập mã <b>tặng lượt AI</b>, <b>tặng ngày</b> hoặc <b>tặng gói</b> để áp dụng ngay. Mã giảm giá gói hãy áp ở trang gói khi thanh toán.</Text>
             <Input
                 style={{ marginTop: 12, textTransform: 'uppercase' }}
                 placeholder="VD: AI500"

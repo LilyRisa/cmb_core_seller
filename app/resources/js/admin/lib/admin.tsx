@@ -129,6 +129,7 @@ export interface AdminVoucher {
     id: number; code: string; name: string; description: string | null;
     kind: VoucherKind; value: number;
     valid_plans: string[];
+    valid_tenant_ids: number[];
     max_redemptions: number; redemption_count: number;
     starts_at: string | null; expires_at: string | null;
     is_active: boolean; is_in_window: boolean; is_exhausted: boolean;
@@ -410,7 +411,8 @@ export function useAdminCreateVoucher() {
         mutationFn: async (vars: {
             code: string; name: string; description?: string;
             kind: VoucherKind; value: number;
-            valid_plans?: string[]; max_redemptions?: number;
+            valid_plans?: string[]; valid_tenant_ids?: number[];
+            max_redemptions?: number;
             starts_at?: string; expires_at?: string;
             meta?: Record<string, unknown>;
         }) => {
@@ -427,7 +429,8 @@ export function useAdminUpdateVoucher() {
         mutationFn: async (vars: {
             id: number;
             name?: string; description?: string;
-            valid_plans?: string[]; max_redemptions?: number;
+            valid_plans?: string[]; valid_tenant_ids?: number[];
+            max_redemptions?: number;
             starts_at?: string | null; expires_at?: string | null;
             is_active?: boolean;
         }) => {

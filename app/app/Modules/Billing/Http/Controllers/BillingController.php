@@ -200,12 +200,12 @@ class BillingController extends Controller
         }
     }
 
-    /** POST /billing/vouchers/redeem — user nhập mã tặng lượt AI ⇒ cộng vào ví credit (SPEC 0032). */
+    /** POST /billing/vouchers/redeem — user nhập mã Tặng gói/Tặng ngày/Tặng lượt AI ⇒ áp ngay (SPEC 0023 + 0032). */
     public function redeemVoucher(Request $request): JsonResponse
     {
         $data = $request->validate(['code' => ['required', 'string', 'max:64']]);
         $tenantId = (int) $this->tenant->id();
-        $result = $this->vouchers->redeemAiCredits(strtoupper(trim($data['code'])), $tenantId, (int) $request->user()->getKey());
+        $result = $this->vouchers->redeemGift(strtoupper(trim($data['code'])), $tenantId, (int) $request->user()->getKey());
 
         return response()->json(['data' => $result]);
     }
@@ -224,7 +224,7 @@ class BillingController extends Controller
             'cycle' => ['required', 'string', 'in:monthly,yearly'],
         ]);
 
-        $voucher = $this->vouchers->validate($data['code'], $data['plan_code']);
+        $voucher = $this->vouchers->validate($data['code'], $data['plan_code'], (int) $this->tenant->id());
 
         $plan = Plan::query()->where('code', $data['plan_code'])->firstOrFail();
         $totals = $this->billing->computeInvoice($plan, $data['cycle']);

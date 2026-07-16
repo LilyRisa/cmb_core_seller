@@ -155,7 +155,7 @@ class BillingService
 
             // SPEC 0023 — áp voucher nếu có (trong transaction). Hỏng ⇒ rollback toàn bộ invoice.
             if ($voucherCode !== null && $voucherCode !== '') {
-                $voucher = $this->vouchers->validate($voucherCode, $plan->code);
+                $voucher = $this->vouchers->validate($voucherCode, $plan->code, $tenantId);
                 $this->vouchers->redeemAtCheckout($voucher, $invoice, $userId);
                 $invoice->refresh();
             }
