@@ -70,4 +70,21 @@ final class FlowGraph
 
         return null;
     }
+
+    /**
+     * Node có cạnh mặc định (sourceHandle=null) đi ra không? Node chỉ có cạnh theo
+     * handle nút bấm (send_buttons không cấu hình nhánh dự phòng) ⇒ false — dùng để
+     * phân biệt "tin thường không khớp nhánh nào" (bỏ qua) với "node có nhánh mặc định
+     * nhưng không khớp điều kiện" (kết thúc theo đúng thiết kế).
+     */
+    public function hasNullHandleEdge(string $fromId): bool
+    {
+        foreach ($this->edges as $edge) {
+            if ($edge['source'] === $fromId && $edge['sourceHandle'] === null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

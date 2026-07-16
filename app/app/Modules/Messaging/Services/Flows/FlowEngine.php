@@ -99,6 +99,18 @@ class FlowEngine
         // edge tương ứng (handle null = mặc định; handle nút bấm = nhánh postback).
         $resumeFrom = $graph->nextNodeId((string) $run->current_node_id, $resumeHandle);
         if ($resumeFrom === null) {
+            // Tin thường (không phải postback nút bấm — resumeHandle=null) mà node đang
+            // chờ CHỈ có cạnh theo handle nút, không có nhánh mặc định ⇒ đây là tin
+            // "lỡ tay" khách gửi trước khi bấm nút, KHÔNG PHẢI câu trả lời cho node ⇒
+            // bỏ qua, giữ nguyên waiting. Nếu kết thúc run ở đây, cú bấm nút thật đến
+            // sau (webhook postback) sẽ không tìm thấy run waiting để resume ⇒ rớt mất
+            // vĩnh viễn, không dấu vết (đã xảy ra thực tế, xem flow_runs id 1-2 tenant 54).
+            if ($resumeHandle === null && ! $graph->hasNullHandleEdge((string) $run->current_node_id)) {
+                $run->update(['status' => FlowRun::STATUS_WAITING]);
+
+                return $run;
+            }
+
             $run->update(['status' => FlowRun::STATUS_ENDED, 'last_advanced_at' => Carbon::now()]);
 
             return $run;

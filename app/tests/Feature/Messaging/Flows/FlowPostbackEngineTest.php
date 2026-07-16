@@ -115,6 +115,45 @@ class FlowPostbackEngineTest extends TestCase
         $this->assertSame(0, Message::withoutGlobalScope(TenantScope::class)->where('conversation_id', $conv->id)->where('body', 'Mời bạn đặt hàng')->count());
     }
 
+    /** @return array<string,mixed> */
+    private function buttonGraphNoFallback(): array
+    {
+        // Giống buttonGraph() nhưng KHÔNG có cạnh mặc định (sourceHandle=null) từ 'ask'
+        // — đúng như flow builder cho phép tạo ngoài thực tế (chỉ có nút bấm, không có
+        // nhánh dự phòng cho tin thường).
+        $graph = $this->buttonGraph();
+        $graph['edges'] = array_values(array_filter(
+            $graph['edges'],
+            fn (array $e) => ! ($e['source'] === 'ask' && $e['sourceHandle'] === null),
+        ));
+
+        return $graph;
+    }
+
+    public function test_stray_reply_while_waiting_for_button_does_not_end_run(): void
+    {
+        Queue::fake();
+        $conv = $this->conv();
+        $flow = $this->flow($this->buttonGraphNoFallback());
+        $engine = app(FlowEngine::class);
+
+        $run = $engine->start($flow, $conv, inboundBody: 'hi');
+        $this->assertSame(FlowRun::STATUS_WAITING, $run->fresh()->status);
+        $this->assertSame('ask', $run->fresh()->current_node_id);
+
+        // Khách gửi 1 tin không liên quan (sticker/tin nhắn khác) TRƯỚC khi bấm nút —
+        // node 'ask' chỉ có cạnh theo id nút, không có cạnh mặc định ⇒ phải BỎ QUA,
+        // giữ nguyên waiting (không kết thúc run), để cú bấm nút thật đến sau vẫn resume được.
+        $engine->resume($run->fresh(), $conv->fresh(), inboundBody: 'haha ok');
+        $this->assertSame(FlowRun::STATUS_WAITING, $run->fresh()->status);
+        $this->assertSame('ask', $run->fresh()->current_node_id);
+
+        // Sau đó khách bấm đúng nút "Phí ship" → vẫn resume đúng nhánh bình thường.
+        $engine->resume($run->fresh(), $conv->fresh(), null, 'b_ship');
+        $this->assertSame(FlowRun::STATUS_COMPLETED, $run->fresh()->status);
+        $this->assertSame(1, Message::withoutGlobalScope(TenantScope::class)->where('conversation_id', $conv->id)->where('body', 'Phí ship 30k toàn quốc.')->count());
+    }
+
     public function test_postback_for_wrong_node_is_ignored(): void
     {
         Queue::fake();
