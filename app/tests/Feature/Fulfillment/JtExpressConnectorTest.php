@@ -141,4 +141,17 @@ class JtExpressConnectorTest extends TestCase
             'recipient' => ['name' => 'X', 'phone' => '090', 'address' => 'test', 'province' => 'Hồ Chí Minh', 'ward' => 'Phường 1'],
         ]);
     }
+
+    public function test_create_shipment_throws_clear_error_when_sender_missing_province(): void
+    {
+        $account = $this->account();
+        $account['meta']['from_address']['province_name'] = '';
+
+        $this->expectExceptionMessage('Tỉnh/Phường kho gửi');
+
+        (new JtExpressConnector)->createShipment($account, [
+            'client_order_code' => 'ORD5',
+            'recipient' => ['name' => 'X', 'phone' => '090', 'address' => 'test', 'province' => 'Hồ Chí Minh', 'ward' => 'Phường 1'],
+        ]);
+    }
 }

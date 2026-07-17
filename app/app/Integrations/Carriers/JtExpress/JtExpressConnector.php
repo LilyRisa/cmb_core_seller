@@ -158,6 +158,9 @@ class JtExpressConnector extends AbstractCarrierConnector
         if ($sender['name'] === '' || $sender['mobile'] === '') {
             throw new RuntimeException('Cài đặt J&T Express thiếu tên/SĐT kho gửi. Vào Cài đặt → ĐVVC để bổ sung.');
         }
+        if ($sender['prov'] === '' || $sender['area'] === '') {
+            throw new RuntimeException('Cài đặt J&T Express thiếu Tỉnh/Phường kho gửi. Vào Cài đặt → ĐVVC để bổ sung.');
+        }
 
         $recipient = (array) ($shipment['recipient'] ?? []);
         $receiver = $this->point($recipient);
