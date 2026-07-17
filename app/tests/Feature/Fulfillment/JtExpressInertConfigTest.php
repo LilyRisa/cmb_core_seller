@@ -25,6 +25,20 @@ class JtExpressInertConfigTest extends TestCase
         $this->assertSame(['createShipment', 'cancel', 'quote', 'getLabel', 'getTracking', 'webhook'], $registry->for('jt')->capabilities());
     }
 
+    public function test_jt_connector_is_auto_registered_by_service_provider_boot(): void
+    {
+        // Deterministic regardless of the ambient INTEGRATIONS_CARRIERS env: force the
+        // config the ServiceProvider's CarrierRegistry singleton closure reads BEFORE
+        // resolving it, so this exercises the REAL boot-time wiring (IntegrationsServiceProvider::
+        // $carrierConnectors + register()) instead of a manual ->register('jt', ...) call.
+        Config::set('integrations.carriers', ['jt']);
+
+        $registry = app(CarrierRegistry::class);
+
+        $this->assertTrue($registry->has('jt'));
+        $this->assertInstanceOf(JtExpressConnector::class, $registry->for('jt'));
+    }
+
     public function test_adding_jt_account_without_credentials_configured_is_inert_not_500(): void
     {
         Config::set('integrations.jt.api_account', '');
