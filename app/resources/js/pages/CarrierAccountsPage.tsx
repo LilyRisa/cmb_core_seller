@@ -42,10 +42,19 @@ const CRED_FIELDS: Record<string, Array<{ key: string; label: string; required?:
         { key: 'token', label: 'Hoặc Token web VTP', required: false, placeholder: 'Token tạo trên viettelpost.vn (nếu không dùng user/mật khẩu)', secret: true },
         { key: 'webhook_secret', label: 'Webhook secret (tuỳ chọn)', required: false, placeholder: 'Secret VTP gửi kèm webhook để xác thực', secret: true },
     ],
+    // J&T Express: xác thực merchant per-tenant. apiAccount/privateKey cấp ứng dụng nằm ở config server
+    // (integrations.jt.*), KHÔNG nhập ở đây. J&T không công bố cơ chế secret webhook nào — webhook_secret
+    // ở đây là quy ước RIÊNG của app: seller tự nhúng giá trị này vào URL webhook (query `?secret=`) lúc
+    // gửi cho J&T đăng ký, xem JtExpressConnector::parseWebhook.
+    jt: [
+        { key: 'customerCode', label: 'Mã khách hàng (customerCode)', required: true, placeholder: 'Do J&T cấp khi ký hợp đồng' },
+        { key: 'password', label: 'Mật khẩu', required: true, placeholder: 'Mật khẩu tài khoản J&T', secret: true },
+        { key: 'webhook_secret', label: 'Webhook secret (tuỳ chọn)', required: false, placeholder: 'Tự đặt, nhúng vào URL webhook gửi J&T (?secret=...)', secret: true },
+    ],
 };
 
 // Carrier nào cần "địa chỉ kho hàng" để tạo vận đơn? GHN yêu cầu district_id của kho.
-const FROM_ADDRESS_REQUIRED: Record<string, boolean> = { ghn: true, ghtk: true, viettelpost: true };
+const FROM_ADDRESS_REQUIRED: Record<string, boolean> = { ghn: true, ghtk: true, viettelpost: true, jt: true };
 
 // Các field "tên người gửi / SĐT / địa chỉ" vẫn nhập tay — chỉ mã hành chính do GHN cung cấp được
 // load tự động qua cascading Select (xem `GhnFromAddressSection`). Form field names giữ nguyên prefix
@@ -58,7 +67,6 @@ const FROM_ADDRESS_BASIC_FIELDS: Array<{ key: string; label: string; required?: 
 
 // Danh sách ĐVVC "sắp có" — hiển thị dimmed-card để người dùng biết roadmap.
 const COMING_SOON: Array<{ code: string; name: string }> = [
-    { code: 'jt', name: 'J&T Express' },
     { code: 'spx', name: 'SPX Express' },
     { code: 'vnpost', name: 'VNPost' },
     { code: 'ahamove', name: 'Ahamove' },
@@ -475,6 +483,13 @@ function AddCarrierAccountModal({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state.open, isEdit, needsFromAddress, defaultSender]);
 
+    // Tạo mới J&T: mặc định "Trả trước tiền mặt" (an toàn cho seller mới, không cần hợp đồng đối soát riêng).
+    useEffect(() => {
+        if (!state.open || isEdit || code !== 'jt') return;
+        form.setFieldsValue({ jt_pay_type: 'PP_CASH' });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.open, isEdit, code]);
+
     // Edit mode: nạp sẵn giá trị hiện có. Credentials (token/shop_id…) KHÔNG có trong list (tránh rò rỉ)
     // ⇒ gọi endpoint reveal riêng rồi đổ vào field form. Token nhạy cảm render bằng Input.Password.
     const reveal = useRevealCarrierCredentials();
@@ -489,6 +504,7 @@ function AddCarrierAccountModal({
             from_province_name: fa.province_name, from_district_name: fa.district_name, from_ward_name: fa.ward_name,
             from_district_id: fa.district_id, from_ward_code: fa.ward_code,
             from_province_id: fa.province_id, from_ward_id: fa.ward_id,
+            jt_pay_type: (state.edit.meta as Record<string, unknown> | undefined)?.pay_type ?? 'PP_CASH',
         });
         // Lấy credential đã lưu để hiển thị lại (đổ SAU nên GHN Shop/địa chỉ tự nạp theo token).
         reveal.mutate(state.edit.id, {
@@ -550,6 +566,9 @@ function AddCarrierAccountModal({
                 }
             });
             if (Object.keys(fromAddress).length > 0) meta.from_address = fromAddress;
+        }
+        if (code === 'jt') {
+            meta.pay_type = v.jt_pay_type === 'PP_PM' ? 'PP_PM' : 'PP_CASH';
         }
         // "Cài đặt giao hàng mặc định" (theo từng tài khoản ĐVVC) — gói vào meta.defaults. Áp cho mọi ĐVVC;
         // "gửi tại điểm" chỉ GHN có chọn điểm cụ thể (GHTK/VTP chỉ lưu cờ). BE đọc ở buildCreatePayload.
@@ -692,6 +711,15 @@ function AddCarrierAccountModal({
                         <Form.Item name="default_service" label="Mã dịch vụ mặc định (tuỳ chọn)" extra="VD: 2 = GHN Standard service_type_id">
                             <Input placeholder="Để trống nếu chưa rõ" />
                         </Form.Item>
+
+                        {code === 'jt' && (
+                            <Form.Item name="jt_pay_type" label="Cách trả cước vận chuyển" extra="Trả trước tiền mặt phù hợp với hầu hết seller mới. Đối soát tháng chỉ dùng được nếu bạn đã ký hợp đồng riêng với J&T.">
+                                <Radio.Group options={[
+                                    { value: 'PP_CASH', label: 'Trả trước tiền mặt' },
+                                    { value: 'PP_PM', label: 'Đối soát theo tháng' },
+                                ]} />
+                            </Form.Item>
+                        )}
 
                         <Typography.Title level={5} style={{ marginTop: 12, marginBottom: 2, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Cài đặt giao hàng mặc định</Typography.Title>
                         <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
