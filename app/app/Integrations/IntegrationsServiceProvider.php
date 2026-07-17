@@ -13,6 +13,7 @@ use CMBcoreSeller\Integrations\Ai\OpenAi\OpenAiConnector;
 use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
 use CMBcoreSeller\Integrations\Carriers\Ghn\GhnConnector;
 use CMBcoreSeller\Integrations\Carriers\Ghtk\GhtkConnector;
+use CMBcoreSeller\Integrations\Carriers\JtExpress\JtExpressConnector;
 use CMBcoreSeller\Integrations\Carriers\Manual\ManualCarrierConnector;
 use CMBcoreSeller\Integrations\Carriers\ViettelPost\ViettelPostConnector;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
@@ -86,7 +87,7 @@ class IntegrationsServiceProvider extends ServiceProvider
         'ghn' => GhnConnector::class,
         'ghtk' => GhtkConnector::class,
         'viettelpost' => ViettelPostConnector::class,
-        // 'jt'   => \CMBcoreSeller\Integrations\Carriers\JtExpress\JtExpressConnector::class,
+        'jt' => JtExpressConnector::class,
     ];
 
     /**

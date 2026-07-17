@@ -161,6 +161,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | J&T Express Open API — SPEC 0042
+    |--------------------------------------------------------------------------
+    |
+    | api_account/private_key: cặp CẤP ỨNG DỤNG do J&T duyệt cho CMBcoreSeller (App Management trên J&T
+    | Console) — 1 cặp cho cả platform, KHÔNG phải per-tenant (khác GHN/GHTK/VTP nơi mỗi tenant tự dán
+    | token của họ; giống mô hình Ahamove). customerCode/password (per-tenant, merchant) sống ở
+    | carrier_accounts.credentials. Rỗng api_account/private_key ⇒ connector TRƠ (inert): verifyCredentials()/
+    | mọi thao tác trả lỗi rõ "chưa cấu hình" thay vì lỗi 500. base_url mặc định UAT — đổi sang
+    | https://ylopenapi.jtexpress.vn/webopenplatformapi khi có credentials Production thật.
+    |
+    */
+    'jt' => [
+        'api_account' => env('JT_API_ACCOUNT', ''),
+        'private_key' => env('JT_PRIVATE_KEY', ''),
+        'base_url' => env('JT_BASE_URL', 'https://demoopenapi.jtexpress.vn/webopenplatformapi'),
+        'http' => [
+            'timeout' => (int) env('JT_HTTP_TIMEOUT', 20),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Per-provider request throttling (calls per minute, per shop)
     |--------------------------------------------------------------------------
     |
