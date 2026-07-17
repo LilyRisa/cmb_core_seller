@@ -504,7 +504,7 @@ function AddCarrierAccountModal({
             from_province_name: fa.province_name, from_district_name: fa.district_name, from_ward_name: fa.ward_name,
             from_district_id: fa.district_id, from_ward_code: fa.ward_code,
             from_province_id: fa.province_id, from_ward_id: fa.ward_id,
-            jt_pay_type: (state.edit.meta as Record<string, unknown> | undefined)?.pay_type ?? 'PP_CASH',
+            jt_pay_type: (state.edit.meta as Record<string, unknown> | undefined)?.pay_type === 'PP_PM' ? 'PP_PM' : 'PP_CASH',
         });
         // Lấy credential đã lưu để hiển thị lại (đổ SAU nên GHN Shop/địa chỉ tự nạp theo token).
         reveal.mutate(state.edit.id, {
@@ -664,7 +664,9 @@ function AddCarrierAccountModal({
                                         ? <>Bắt buộc với GHTK — dùng làm địa chỉ lấy hàng khi tạo vận đơn. GHTK nhận địa chỉ <b>theo tên</b> Tỉnh/Quận/Phường.</>
                                         : code === 'viettelpost'
                                             ? <>Bắt buộc với Viettel Post — dùng làm địa chỉ lấy hàng. Chọn Tỉnh/Phường (đơn vị hành chính mới) để lấy <b>mã VTP</b> tạo vận đơn.</>
-                                            : <>Bắt buộc với GHN — dùng để tạo vận đơn. Mã quận/phường <b>tự động tải</b> từ GHN sau khi bạn nhập API Token.</>}
+                                            : code === 'jt'
+                                                ? <>Bắt buộc với J&amp;T Express — dùng làm địa chỉ lấy hàng. J&amp;T chỉ nhận địa chỉ <b>2 cấp</b> Tỉnh/Phường theo danh mục hành chính mới (không có Quận), nhập theo tên.</>
+                                                : <>Bắt buộc với GHN — dùng để tạo vận đơn. Mã quận/phường <b>tự động tải</b> từ GHN sau khi bạn nhập API Token.</>}
                                 </Typography.Paragraph>
 
                                 {/* Lấy sẵn tên/SĐT/địa chỉ từ hồ sơ người gửi ("Địa chỉ lấy hàng") ở Cài đặt → In. */}
@@ -705,6 +707,7 @@ function AddCarrierAccountModal({
                                 } : undefined} />}
                                 {code === 'ghtk' && <GhtkFromAddressSection form={form} initial={isEdit ? { province: editFa.province_name as string | undefined, district: editFa.district_name as string | undefined, ward: editFa.ward_name as string | undefined } : undefined} />}
                                 {code === 'viettelpost' && <ViettelPostFromAddressSection form={form} initial={isEdit ? { province_id: editFa.province_id as number | undefined, province_name: editFa.province_name as string | undefined, ward_id: editFa.ward_id as number | undefined, ward_name: editFa.ward_name as string | undefined } : undefined} />}
+                                {code === 'jt' && <JtFromAddressSection form={form} initial={isEdit ? { province_name: editFa.province_name as string | undefined, ward_name: editFa.ward_name as string | undefined } : undefined} />}
                             </>
                         )}
 
@@ -1002,6 +1005,35 @@ function GhtkFromAddressSection({ form, initial }: { form: FormInstance; initial
             <Form.Item name="from_province_name" hidden rules={[{ required: true, message: 'Chọn Tỉnh/Thành của kho gửi' }]}><Input /></Form.Item>
             <Form.Item name="from_ward_name" hidden rules={[{ required: true, message: 'Chọn Phường/Xã của kho gửi' }]}><Input /></Form.Item>
             <Form.Item name="from_district_name" hidden><Input /></Form.Item>
+        </>
+    );
+}
+
+/**
+ * J&T Express chỉ hỗ trợ addressing "selfAddress=1" — địa chỉ 2 CẤP (Tỉnh + Phường/Xã) theo danh mục
+ * hành chính MỚI, KHÔNG có cấp Quận; BE không đọc/gửi district cho J&T (xem
+ * JtExpressConnector::createShipment — hard-require account.meta.from_address.province_name/ward_name).
+ * J&T không có API tra cứu tỉnh/quận/phường như GHN ⇒ dùng lại AddressPicker (như GHTK) nhưng chỉ ghi
+ * from_province_name/from_ward_name (bỏ qua district — J&T không dùng tới).
+ */
+function JtFromAddressSection({ form, initial }: { form: FormInstance; initial?: { province_name?: string; ward_name?: string } }) {
+    const [addr, setAddr] = useState<PickedAddress>({ format: 'new', province: initial?.province_name, ward: initial?.ward_name });
+
+    return (
+        <>
+            <Form.Item label="Khu vực kho gửi (Tỉnh / Phường, đơn vị hành chính mới)" required>
+                <AddressPicker value={addr} onPick={(p) => {
+                    setAddr(p);
+                    form.setFieldsValue({
+                        from_province_name: p.province ?? '',
+                        from_ward_name: p.ward ?? '',
+                    });
+                    form.validateFields(['from_province_name', 'from_ward_name']).catch(() => {});
+                }} />
+            </Form.Item>
+            {/* Hidden — set bởi AddressPicker; submit() gói vào meta.from_address. J&T không dùng district. */}
+            <Form.Item name="from_province_name" hidden rules={[{ required: true, message: 'Chọn Tỉnh/Thành của kho gửi' }]}><Input /></Form.Item>
+            <Form.Item name="from_ward_name" hidden rules={[{ required: true, message: 'Chọn Phường/Xã của kho gửi' }]}><Input /></Form.Item>
         </>
     );
 }
