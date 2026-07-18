@@ -1,6 +1,7 @@
 # Thiết kế: Lịch sử thanh toán hóa đơn (Admin)
 
 - **Ngày:** 2026-07-18 · **Tác giả:** lilyrisa
+- **Trạng thái:** Implemented
 - **Liên quan:** `docs/specs/0018-billing-saas.md` (pipeline checkout → invoice → webhook → payment), `docs/specs/0023-admin-vouchers-plans-broadcast.md` (nguồn gốc endpoint mark-paid/refund per-tenant hiện có, RBAC `billing.view`/`billing.manage`).
 
 ## 1. Vấn đề & mục tiêu
