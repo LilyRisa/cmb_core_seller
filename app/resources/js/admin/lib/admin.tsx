@@ -93,6 +93,34 @@ export interface AdminPayment {
     occurred_at: string | null; refunded_at: string | null;
 }
 
+export interface AdminInvoiceHistoryRow extends AdminInvoice {
+    tenant_id: number;
+    tenant: { id: number; name: string; slug: string } | null;
+    payments: AdminPayment[];
+}
+
+export interface AdminInvoiceFilters {
+    status?: string; tenant_id?: number; q?: string;
+    date_from?: string; date_to?: string;
+    page?: number; per_page?: number;
+}
+
+export function useAdminInvoices(filters: AdminInvoiceFilters = {}) {
+    return useQuery({
+        queryKey: ['admin', 'invoices', filters],
+        queryFn: async () => {
+            const params: Record<string, string | number> = {};
+            (Object.keys(filters) as Array<keyof AdminInvoiceFilters>).forEach((k) => {
+                const v = filters[k];
+                if (v != null && v !== '') params[k] = v as string | number;
+            });
+            const { data } = await api.get<Paginated<AdminInvoiceHistoryRow>>('/admin/invoices', { params });
+            return data;
+        },
+        placeholderData: (p) => p, staleTime: 15_000,
+    });
+}
+
 export interface AdminVoucherRedemptionRow {
     id: number; voucher_code: string | null; voucher_name: string | null; voucher_kind: string | null;
     discount_amount: number; granted_days: number; invoice_id: number | null;
