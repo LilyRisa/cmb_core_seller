@@ -12,6 +12,7 @@ import { AdminTenantDetailPage } from './pages/tenants/AdminTenantDetailPage';
 import { AdminVouchersPage } from './pages/tenants/AdminVouchersPage';
 import { AdminPlansPage } from './pages/tenants/AdminPlansPage';
 import { AdminAuditLogsPage } from './pages/tenants/AdminAuditLogsPage';
+import { AdminInvoicesPage } from './pages/tenants/AdminInvoicesPage';
 import { AdminBroadcastsPage } from './pages/tenants/AdminBroadcastsPage';
 import { AdminAnnouncementsPage } from './pages/AdminAnnouncementsPage';
 import { AdminDesktopBackgroundsPage } from './pages/AdminDesktopBackgroundsPage';
@@ -47,6 +48,7 @@ export function AdminApp() {
                     <Route path="announcements" element={<AdminAnnouncementsPage />} />
                     <Route path="desktop-backgrounds" element={<AdminDesktopBackgroundsPage />} />
                     <Route path="audit-logs" element={<AdminAuditLogsPage />} />
+                    <Route path="invoices" element={<AdminInvoicesPage />} />
                     <Route path="users" element={<AdminUsersPage />} />
                     <Route path="settings" element={<SystemSettingsPage />} />
                     <Route path="notification-emails" element={<AdminNotificationEmailsPage />} />

@@ -9,6 +9,7 @@ import {
     UserOutlined,
     SettingOutlined,
     AuditOutlined,
+    TransactionOutlined,
     LogoutOutlined,
     SafetyCertificateOutlined,
     GiftOutlined,
@@ -43,6 +44,7 @@ const SIDEBAR_ITEMS = [
     { key: '/admin/ai-transcription', icon: <AudioOutlined />, label: 'AI chuyển giọng nói' },
     { key: '/admin/support-requests', icon: <SolutionOutlined />, label: 'Yêu cầu CSKH' },
     { key: '/admin/audit-logs', icon: <AuditOutlined />, label: 'Nhật ký' },
+    { key: '/admin/invoices', icon: <TransactionOutlined />, label: 'Lịch sử thanh toán' },
 ];
 
 export function AdminLayout() {
