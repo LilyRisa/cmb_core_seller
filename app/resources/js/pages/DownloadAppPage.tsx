@@ -17,7 +17,7 @@ import '../../css/download-app.css';
 
 // Link tải bản test hiện tại. Khi lên store/CDN chính thức, đổi tại đây.
 const APK_URL =
-    'https://expo.dev/artifacts/eas/Tp4Y0e8E_alktrbfBgHUaLbNm0VyGhAeOTc4Uj9jjbk.apk';
+    'https://expo.dev/artifacts/eas/HwuOG0t9V_2eBqtBZEgoNgXRtwIc6Q8_iEiouOyClg0.apk';
 
 // Google Play chính thức đã có — QR sinh từ URL này (public/images/playstore-qr.svg, xem BarcodeRenderer).
 const PLAY_STORE_URL =

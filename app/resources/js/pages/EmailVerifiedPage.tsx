@@ -37,7 +37,7 @@ export function EmailVerifiedPage() {
         }
     }, [status, qc]);
 
-    const goNext = () => navigate(user ? '/' : '/login', { replace: true });
+    const goNext = () => navigate(user ? '/dashboard' : '/login', { replace: true });
 
     if (status === 'success') {
         return (
@@ -94,7 +94,7 @@ export function EmailVerifiedPage() {
                     }
                     extra={[
                         user ? (
-                            <Button key="back" type="primary" size="large" icon={<ReloadOutlined />} onClick={() => navigate('/', { replace: true })}>
+                            <Button key="back" type="primary" size="large" icon={<ReloadOutlined />} onClick={() => navigate('/dashboard', { replace: true })}>
                                 Quay lại để gửi lại email
                             </Button>
                         ) : (
@@ -128,7 +128,7 @@ export function EmailVerifiedPage() {
                 }
                 extra={[
                     user ? (
-                        <Button key="back" type="primary" size="large" icon={<ReloadOutlined />} onClick={() => navigate('/', { replace: true })}>
+                        <Button key="back" type="primary" size="large" icon={<ReloadOutlined />} onClick={() => navigate('/dashboard', { replace: true })}>
                             Quay lại để gửi lại email
                         </Button>
                     ) : (
