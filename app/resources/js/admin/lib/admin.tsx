@@ -95,7 +95,7 @@ export interface AdminPayment {
 
 export interface AdminInvoiceHistoryRow extends AdminInvoice {
     tenant_id: number;
-    tenant: { id: number; name: string; slug: string } | null;
+    tenant: { id: number; name: string; slug: string | null } | null;
     payments: AdminPayment[];
 }
 
