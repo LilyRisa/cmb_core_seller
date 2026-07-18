@@ -228,8 +228,10 @@ class JtExpressConnector extends AbstractCarrierConnector
             'carrier' => 'jt',
             'status' => 'created',
             // ⚠️ Tên field response addOrder (inquiryFee/codFee/insuranceFee) canh lệch dòng trong tài liệu
-            // J&T — CHƯA verify field nào là tổng phí thật. Dùng insuranceFee tạm (xem SPEC 0042 §2.1).
-            'fee' => (int) ($data['insuranceFee'] ?? 0),
+            // J&T — CHƯA verify field nào là tổng phí thật (xem SPEC 0042 §11). Mặc định thẳng 0: thà báo
+            // "chưa biết" còn hơn lấy nhầm insuranceFee (phí bảo hiểm, không phải phí ship) làm số tiền sai
+            // lệch ngay khi có tài khoản UAT thật.
+            'fee' => 0,
             'raw' => $data,
         ];
     }
@@ -277,7 +279,9 @@ class JtExpressConnector extends AbstractCarrierConnector
         $data = $this->client()->trace([...$merchant, 'billcodes' => $trackingNo]);
         $row = $data[0] ?? null;
         $details = is_array($row) ? (array) ($row['details'] ?? []) : [];
-        $last = $details !== [] ? end($details) : null;
+        // `details` có thể là 1 object đơn (không phải mảng) theo tài liệu "Object | Array" — chuẩn hoá
+        // giống parseWebhook().
+        $last = isset($details[0]) ? end($details) : ($details !== [] ? $details : null);
         $status = is_array($last) ? JtExpressStatusMap::toShipmentStatus($last['scanTypeCode'] ?? null) : null;
 
         $events = array_values(array_map(fn ($d) => [
