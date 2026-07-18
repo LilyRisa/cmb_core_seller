@@ -81,7 +81,8 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         Route::post('tenants/{tid}/invoices', [AdminTenantController::class, 'createInvoice'])
             ->whereNumber('tid')->name('admin.tenants.invoices.create');
 
-        // --- Invoice & payment global (SPEC 0023) ---
+        // --- Invoice & payment global (SPEC 0023 + lịch sử thanh toán 2026-07-18) ---
+        Route::get('invoices', [AdminTenantController::class, 'invoices'])->name('admin.invoices.index');
         Route::post('invoices/{id}/mark-paid', [AdminTenantController::class, 'markInvoicePaid'])
             ->whereNumber('id')->name('admin.invoices.mark-paid');
         Route::post('payments/{id}/refund', [AdminTenantController::class, 'refundPayment'])

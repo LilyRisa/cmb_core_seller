@@ -447,6 +447,64 @@ class AdminTenantController extends Controller
         ];
     }
 
+    /**
+     * GET /api/v1/admin/invoices — lịch sử thanh toán hóa đơn xuyên tenant, có lọc (2026-07-18).
+     * `status=pending` = hóa đơn đã mở yêu cầu thanh toán nhưng chưa hoàn thành.
+     */
+    public function invoices(Request $request): JsonResponse
+    {
+        $perPage = max(1, min(100, (int) $request->query('per_page', 20)));
+
+        $query = Invoice::query()->withoutGlobalScope(TenantScope::class)->orderByDesc('created_at');
+
+        if ($status = $request->query('status')) {
+            $query->where('status', $status);
+        }
+        if ($tenantId = $request->query('tenant_id')) {
+            $query->where('tenant_id', (int) $tenantId);
+        }
+        if ($q = $request->query('q')) {
+            $query->where('code', 'like', '%'.$q.'%');
+        }
+        if ($from = $request->query('date_from')) {
+            $query->where('created_at', '>=', $from);
+        }
+        if ($to = $request->query('date_to')) {
+            $query->where('created_at', '<=', $to);
+        }
+
+        // withoutGlobalScope trên quan hệ payments: eager-load mặc định vẫn áp TenantScope
+        // (không có tenant hiện tại ở context admin ⇒ lọc về tenant_id=0, mất sạch payments).
+        $page = $query->with(['payments' => fn ($q) => $q->withoutGlobalScope(TenantScope::class)])
+            ->paginate($perPage);
+
+        $tenantIds = collect($page->items())->pluck('tenant_id')->unique()->values();
+        $tenants = Tenant::query()->whereIn('id', $tenantIds)->get(['id', 'name', 'slug'])->keyBy('id');
+
+        $rows = collect($page->items())->map(function (Invoice $invoice) use ($tenants) {
+            $t = $tenants->get($invoice->tenant_id);
+
+            return array_merge($this->invoiceResource($invoice), [
+                'tenant_id' => $invoice->tenant_id,
+                'tenant' => $t ? ['id' => $t->id, 'name' => $t->name, 'slug' => $t->slug] : null,
+                'payments' => $invoice->payments->map(fn (Payment $p) => [
+                    'id' => $p->id, 'invoice_id' => $p->invoice_id,
+                    'gateway' => $p->gateway, 'amount' => $p->amount, 'status' => $p->status,
+                    'occurred_at' => $p->occurred_at?->toIso8601String(),
+                    'refunded_at' => $p->refunded_at?->toIso8601String(),
+                ])->all(),
+            ]);
+        })->all();
+
+        return response()->json([
+            'data' => $rows,
+            'meta' => ['pagination' => [
+                'page' => $page->currentPage(), 'per_page' => $page->perPage(),
+                'total' => $page->total(), 'total_pages' => $page->lastPage(),
+            ]],
+        ]);
+    }
+
     /** @return array<string, mixed> */
     private function invoiceResource(Invoice $invoice): array
     {
