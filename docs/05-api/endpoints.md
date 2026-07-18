@@ -158,7 +158,7 @@
 | Method | Path | Auth | Request | Response |
 |---|---|---|---|---|
 | GET | `/api/v1/carriers` | `fulfillment.view` | — | `{ data:[{ code, name, capabilities:[], needs_credentials }] }` — các ĐVVC khả dụng (`manual` luôn có; thêm theo `INTEGRATIONS_CARRIERS`). |
-| GET/POST | `/api/v1/carrier-accounts` | `fulfillment.view` / `fulfillment.carriers` | — / `{ carrier, name, credentials?, default_service?, is_default?, meta? }` | `CarrierAccountResource[]` / `201`. `credentials` được mã hoá, response chỉ trả `credential_keys`. Carrier không hỗ trợ ⇒ `422`. |
+| GET/POST | `/api/v1/carrier-accounts` | `fulfillment.view` / `fulfillment.carriers` | — / `{ carrier, name, credentials?, default_service?, is_default?, meta? }` | `CarrierAccountResource[]` / `201`. `credentials` được mã hoá, response chỉ trả `credential_keys`. Carrier không hỗ trợ ⇒ `422`. `carrier=jt` (J&T Express, SPEC 0042): cùng shape `credentials{customerCode,password}`/`meta.from_address` như GHN/VTP, cộng thêm `meta.pay_type` (`'PP_CASH'` \| `'PP_PM'`, mặc định `PP_CASH`) chọn cách trả cước. |
 | PATCH/DELETE | `/api/v1/carrier-accounts/{id}` | `fulfillment.carriers` | partial / — | `CarrierAccountResource` / `{ deleted:true }`. |
 | POST | `/api/v1/carrier-accounts/{id}/verify` | `fulfillment.carriers` | — | `{ data:{ ok, message, error_code?, expires_at?, verified_at, account } }` — gọi `connector.verifyCredentials` (vd VTP đăng nhập lấy token). |
 | POST | `/api/v1/carrier-accounts/ghn/master-data` · `/ghn/shops` | `fulfillment.carriers` | `{ token, level, province_id?, district_id? }` · `{ token }` | proxy GHN (cascading mã quận/phường, danh sách shop) cho form thêm tài khoản. Cache theo hash token. |

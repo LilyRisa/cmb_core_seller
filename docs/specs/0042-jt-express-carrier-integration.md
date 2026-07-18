@@ -1,6 +1,6 @@
 # SPEC 0042: Tích hợp J&T Express làm Đơn vị vận chuyển
 
-- **Trạng thái:** Draft
+- **Trạng thái:** Implemented (code xong; chờ apiAccount/privateKey Production thật từ J&T để verify công thức ký + test sandbox — xem §11)
 - **Phase:** 5.5 (Fulfillment ĐVVC tự vận chuyển — mở rộng sau GHN/GHTK/Viettel Post/Ahamove)
 - **Module backend liên quan:** Fulfillment + Integration layer (`Integrations/Carriers/Jt`)
 - **Tác giả / Ngày:** lilyrisa · 2026-07-17
