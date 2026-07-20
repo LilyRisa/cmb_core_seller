@@ -143,6 +143,17 @@ class AiSuggestionService
         .'thời gian giao, giá… nếu tài liệu/thông tin cửa hàng KHÔNG nêu rõ). Nếu khách hỏi mà không có dữ liệu, '
         .'hãy nói sẽ KIỂM TRA/XÁC NHẬN lại rồi báo — không tự bịa, không tự khẳng định.';
 
+    /**
+     * Chặn suy giới tính khách từ TÊN HIỂN THỊ mạng xã hội — ca thật 2026-07-21: khách tên FB "Anh Lan"
+     * (chữ "Anh" là MỘT PHẦN tên riêng) nhưng AI đọc thành đại từ xưng hô ⇒ xưng "anh" cả hội thoại dù
+     * khách là nữ và shop đã cấu hình ghi chú chốt sale ưu tiên "chị gái yêu" khi chưa rõ giới tính.
+     */
+    private const GENDER_ADDRESS_CAUTION_DIRECTIVE = 'TÊN HIỂN THỊ của khách trên mạng xã hội (Facebook/Zalo…) '
+        .'KHÔNG PHẢI căn cứ đáng tin cậy để suy giới tính — tên tiếng Việt có thể ghép nhiều cách (vd "Anh Lan", '
+        .'"Nam Phương") mà không phản ánh giới tính thật, dù trông giống chữ xưng hô. CHỈ xác định giới tính khi '
+        .'khách TỰ nói rõ trong hội thoại (vd tự xưng "em/chị/anh", tự nhận nam/nữ) hoặc theo ghi chú chốt sale '
+        .'của shop; nếu không có căn cứ nào trong 2 nguồn này, coi như CHƯA RÕ giới tính.';
+
     /** Preset phong cách chốt sale → chỉ dẫn tiếng Việt nối vào prompt (sau persona). */
     private const CLOSING_STYLES = [
         'consultative' => 'Phong cách: TƯ VẤN nhẹ nhàng — ưu tiên giải đáp đúng nhu cầu, KHÔNG hối thúc mua; chỉ mời đặt khi khách đã sẵn sàng.',
@@ -781,10 +792,9 @@ class AiSuggestionService
     private function baseSystemExtra(): string
     {
         $global = $this->globalSystemPrompt();
+        $base = self::REPLY_FOCUS_DIRECTIVE."\n\n".self::GENDER_ADDRESS_CAUTION_DIRECTIVE;
 
-        return $global !== null && $global !== ''
-            ? self::REPLY_FOCUS_DIRECTIVE."\n\n".$global
-            : self::REPLY_FOCUS_DIRECTIVE;
+        return $global !== null && $global !== '' ? $base."\n\n".$global : $base;
     }
 
     /**
