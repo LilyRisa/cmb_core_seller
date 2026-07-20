@@ -6,10 +6,10 @@ import {
     CheckCircleFilled,
     ClockCircleOutlined,
     CloseCircleFilled,
+    DownOutlined,
     InboxOutlined,
     LogoutOutlined,
     ReloadOutlined,
-    SearchOutlined,
     SendOutlined,
     WarningFilled,
 } from '@ant-design/icons';
@@ -32,6 +32,7 @@ export function VerifyEmailPage({ user }: { user: AuthUser }) {
     const logout = useLogout();
     const [cooldown, setCooldown] = useState(0);
     const [justSent, setJustSent] = useState(false);
+    const [showHelp, setShowHelp] = useState(false);
 
     useEffect(() => {
         if (cooldown <= 0) return;
@@ -86,20 +87,15 @@ export function VerifyEmailPage({ user }: { user: AuthUser }) {
                     </h1>
 
                     <p className="verify-email-leader">
-                        Chúng tôi đã gửi đường dẫn xác thực đến{' '}
-                        <span className="email-addr">{user.email}</span>. Bấm vào liên kết trong email để
-                        mở khoá đầy đủ tính năng — đơn hàng, kho và đối soát đa sàn.
+                        Chúng tôi đã gửi liên kết xác thực đến{' '}
+                        <span className="email-addr">{user.email}</span>.
                     </p>
                 </div>
 
                 {justSent && !resend.isError && resend.data?.sent && (
                     <div className="verify-email-alert is-success">
                         <CheckCircleFilled />
-                        <div>
-                            <strong>Đã gửi lại email xác thực.</strong> Kiểm tra hộp thư{' '}
-                            <strong>{user.email}</strong> (kể cả thư mục Spam / Quảng cáo). Email thường
-                            tới sau 1–2 phút.
-                        </div>
+                        <div><strong>Đã gửi lại email xác thực.</strong></div>
                     </div>
                 )}
 
@@ -119,91 +115,32 @@ export function VerifyEmailPage({ user }: { user: AuthUser }) {
                     </div>
                 )}
 
-                <div className="verify-steps">
-                    <div className="verify-steps-label">Bốn bước đơn giản</div>
-
-                    <Step
-                        n="01"
-                        icon={<InboxOutlined />}
-                        title="Mở hộp thư email"
-                        desc={
-                            <>
-                                Đăng nhập vào hộp thư <strong>{user.email}</strong> trên trình duyệt hoặc app
-                                email bạn đang dùng.
-                            </>
-                        }
-                    />
-
-                    <Step
-                        n="02"
-                        icon={<SearchOutlined />}
-                        title={
-                            <>
-                                Tìm email tiêu đề <code>[CMBcoreSeller] Xác thực địa chỉ email</code>
-                            </>
-                        }
-                        desc={
-                            <>
-                                Gửi từ <strong>no-reply@cmbcore.com</strong>. Có thể mất 1–2 phút để tới hộp
-                                thư của bạn.
-                            </>
-                        }
-                    />
-
-                    <Step
-                        n="03"
-                        icon={<WarningFilled />}
-                        highlight
-                        title={
-                            <>
-                                Không thấy? <strong>Kiểm tra thư mục Spam / Quảng cáo</strong>
-                            </>
-                        }
-                        desc={
-                            <>
-                                Email tự động hay bị Gmail/Outlook/Yahoo lọc nhầm vào các mục phụ. Hãy thử
-                                xem:
-                                <div className="verify-step-callout">
-                                    <ul>
-                                        <li>
-                                            <strong>Gmail</strong> — mục <em>Spam</em>, tab <em>Quảng cáo</em>{' '}
-                                            hoặc <em>Cập nhật</em>
-                                        </li>
-                                        <li>
-                                            <strong>Outlook</strong> — mục <em>Junk Email</em> / <em>Other</em>
-                                        </li>
-                                        <li>
-                                            <strong>Yahoo Mail</strong> — mục <em>Spam</em> hoặc <em>Bulk</em>
-                                        </li>
-                                    </ul>
-                                </div>
-                                Nếu tìm thấy, đánh dấu <em>"Không phải spam"</em> để email sau vào thẳng hộp
-                                thư chính.
-                            </>
-                        }
-                    />
-
-                    <Step
-                        n="04"
-                        icon={<SendOutlined />}
-                        title={
-                            <>
-                                Bấm nút <strong>"Xác thực email →"</strong> trong email
-                            </>
-                        }
-                        desc={
-                            <>
-                                Hoặc copy đường dẫn (bắt đầu bằng{' '}
-                                <code>{window.location.origin}/api/v1/auth/email/verify/…</code>) rồi dán vào
-                                trình duyệt.
-                                <div className="verify-step-meta">
-                                    <ClockCircleOutlined />
-                                    <span>Link có hiệu lực 60 phút kể từ lúc gửi.</span>
-                                </div>
-                            </>
-                        }
-                    />
+                <div className="verify-checklist">
+                    <div className="verify-checklist-item"><InboxOutlined /> Kiểm tra <strong>Hộp thư đến</strong></div>
+                    <div className="verify-checklist-item"><WarningFilled /> Không thấy? Kiểm tra <strong>Spam / Quảng cáo</strong></div>
+                    <div className="verify-checklist-item"><ClockCircleOutlined /> Email có thể đến sau 1–2 phút</div>
                 </div>
+
+                <button type="button" className="verify-help-toggle" onClick={() => setShowHelp((s) => !s)}>
+                    {showHelp ? 'Ẩn bớt' : 'Không thấy email?'}
+                    <DownOutlined rotate={showHelp ? 180 : 0} />
+                </button>
+
+                {showHelp && (
+                    <div className="verify-help-detail">
+                        <p>
+                            Gửi từ <strong>no-reply@cmbcore.com</strong>, tiêu đề{' '}
+                            <code>[CMBcoreSeller] Xác thực địa chỉ email</code>.
+                        </p>
+                        <ul>
+                            <li><strong>Gmail</strong> — mục Spam, tab Quảng cáo hoặc Cập nhật</li>
+                            <li><strong>Outlook</strong> — mục Junk Email / Other</li>
+                            <li><strong>Yahoo Mail</strong> — mục Spam hoặc Bulk</li>
+                        </ul>
+                        <p>Tìm thấy rồi? Đánh dấu <em>&quot;Không phải spam&quot;</em> để email sau vào thẳng hộp thư chính.</p>
+                        <p>Bấm nút &quot;Xác thực email →&quot; trong email, hoặc dán link vào trình duyệt. Link có hiệu lực 60 phút.</p>
+                    </div>
+                )}
 
                 <div className="verify-actions">
                     <Button
@@ -217,7 +154,7 @@ export function VerifyEmailPage({ user }: { user: AuthUser }) {
                         {cooldown > 0 ? `Gửi lại sau ${cooldown}s` : 'Gửi lại email xác thực'}
                     </Button>
 
-                    <Tooltip title="Đã bấm xác thực trong email mà trang chưa đổi? Bấm để kiểm tra lại trạng thái.">
+                    <Tooltip title="Kiểm tra lại nếu đã xác thực xong">
                         <Button size="large" icon={<ReloadOutlined />} onClick={handleRefresh}>
                             Tôi đã xác thực — Tải lại
                         </Button>
@@ -242,31 +179,6 @@ export function VerifyEmailPage({ user }: { user: AuthUser }) {
                 <span>&copy; {new Date().getFullYear()} CMBcoreSeller</span>
                 <span className="dot" />
                 <span>Quản lý bán hàng đa sàn TikTok · Shopee · Lazada</span>
-            </div>
-        </div>
-    );
-}
-
-function Step({
-    n,
-    icon,
-    title,
-    desc,
-    highlight = false,
-}: {
-    n: string;
-    icon: React.ReactNode;
-    title: React.ReactNode;
-    desc: React.ReactNode;
-    highlight?: boolean;
-}) {
-    return (
-        <div className={`verify-step-row${highlight ? ' is-highlight' : ''}`}>
-            <span className="verify-step-num">{n}</span>
-            <span className="verify-step-icon-cell">{icon}</span>
-            <div>
-                <div className="verify-step-title-text">{title}</div>
-                <div className="verify-step-desc">{desc}</div>
             </div>
         </div>
     );
