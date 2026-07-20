@@ -136,6 +136,14 @@ x-app-env: &app-env
   # Marketplace integrations
   INTEGRATIONS_CHANNELS: ${INTEGRATIONS_CHANNELS:-manual,tiktok,shopee,lazada}
   INTEGRATIONS_CARRIERS: ${INTEGRATIONS_CARRIERS:-}
+  # J&T Express (SPEC 0042) — cặp CẤP ỨNG DỤNG do J&T duyệt cho CMBcoreSeller, 1 cặp cho CẢ platform
+  # (KHÔNG per-tenant — khác GHN/GHTK/VTP nơi mỗi tenant tự dán token của họ ở Cài đặt → ĐVVC). Rỗng
+  # ⇒ connector TRƠ (verifyCredentials()/mọi thao tác trả lỗi rõ "chưa cấu hình", không lỗi 500).
+  # ⚠️ JT_PRIVATE_KEY là BÍ MẬT — nhập ở Portainer/.env, KHÔNG để default ở đây.
+  JT_API_ACCOUNT: ${JT_API_ACCOUNT:-}
+  JT_PRIVATE_KEY: ${JT_PRIVATE_KEY:-}
+  # Mặc định UAT — đổi sang https://ylopenapi.jtexpress.vn/webopenplatformapi khi có credentials Production thật.
+  JT_BASE_URL: ${JT_BASE_URL:-https://demoopenapi.jtexpress.vn/webopenplatformapi}
   # --- Payment gateways (Billing) — cổng thu tiền nâng cấp/mua gói ------------
   # PHẢI khai ở đây mới vào container (xem chú thích R2 phía trên: Portainer chỉ feed ${VAR}).
   # SePay = chuyển khoản tự động qua webhook sao kê. account_no/account_name/webhook_api_key
