@@ -66,7 +66,13 @@ class JtExpressConnector extends AbstractCarrierConnector
         return new JtExpressClient($this->apiAccount(), $this->privateKey());
     }
 
-    /** @return array{customerCode:string,password:string} */
+    /**
+     * @return array{customerCode:string,password:string}
+     *
+     * `credentials.password` lưu RAW (đúng như user nhập ở form Thêm tài khoản, khớp mô tả J&T "password
+     * hồ sơ khách hàng do Sales/Network cấp") — hash qua {@see JtExpressSigner::hashPassword()} NGAY TRƯỚC
+     * khi gửi, J&T không nhận plaintext trong `bizContent`.
+     */
     private function merchant(array $account): array
     {
         $c = (array) ($account['credentials'] ?? []);
@@ -76,7 +82,7 @@ class JtExpressConnector extends AbstractCarrierConnector
             throw new RuntimeException('Tài khoản J&T Express chưa nhập Mã khách hàng/Mật khẩu.');
         }
 
-        return ['customerCode' => $code, 'password' => $password];
+        return ['customerCode' => $code, 'password' => JtExpressSigner::hashPassword($password)];
     }
 
     private function payType(array $account): string

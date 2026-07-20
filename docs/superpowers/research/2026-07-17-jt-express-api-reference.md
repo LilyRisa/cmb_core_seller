@@ -66,6 +66,17 @@ Toàn bộ 7 endpoint dùng chung 1 cặp `apiAccount`/`privateKey` UAT ở trê
 
 Theo "Process" ở trang Introduction: (1) đăng ký user → (2) đăng ký làm developer → (3) xác thực developer (đủ quyền order/e-waybill) → (4) liên hệ kỹ thuật J&T để test UAT → (5) thông báo J&T trước khi lên production. Tức là **không self-service hoàn toàn** — vẫn cần liên hệ người của J&T để cấp `customerCode`/`password` merchant thật + apiAccount production, giống quy trình VTP/GHN.
 
+**Cập nhật 2026-07-20 — xác nhận lại bằng cách đọc trực tiếp trang "Support Center → Process" (§2 Field Description):**
+
+> Customercode: When signing the contract, the company will provide this code. **For the test environment, the code in the document can be used.**
+> Password: Sales or Network provide the corresponding password.
+> Note: Customer ID and password can be provided by **contacting the Network**, apiAccount and privateKey information will be generated after completing the authentication process (in Application Management).
+
+Tức là:
+- `customerCode` — J&T CHO PHÉP dùng lại mã ví dụ rải rác trong doc (vd `024E000014`, `084LC02000`, `LC00001113`, `084LC02438`) để test ở UAT — **KHÔNG cần liên hệ trước** cho bước này.
+- `password` — **KHÔNG self-service, KHÔNG có trong doc** dù nhiều trang JSON ví dụ có hiện chuỗi trông như password/hash (`123456`, `H5CD3zE6`, `AF798EA591C460FC633D4567EC88E3FB`, `FbuEF5bDUc65+TN0HxnO+g==`) — đây chỉ là **placeholder minh hoạ, không phải secret thật dùng được**. Đã thử ghép `H5CD3zE6` (ví dụ raw password ở bảng field trang addOrder) với suffix `jadada369t3` (mô tả ở trang Authentication Tools) theo nhiều cách rồi MD5 — **không khớp** với `AF798EA591C460FC633D4567EC88E3FB` (ví dụ JSON cùng trang) ⇒ 2 giá trị này không phải cặp password/hash tương ứng nhau, chỉ là 2 ví dụ độc lập của tác giả doc khác lúc viết.
+- ⇒ **Muốn test UAT thật (gọi `addOrder` thành công) bắt buộc phải liên hệ J&T "Network"/Sales xin password merchant thật** — không thể tự suy ra hay tự tạo. Cách encode chính xác field `password` (plaintext hay MD5-uppercase, có salt hay không) vẫn **chưa xác định được qua doc** — chỉ chốt được khi có password thật để thử trực tiếp ở UAT.
+
 ---
 
 ## 2. Order Service

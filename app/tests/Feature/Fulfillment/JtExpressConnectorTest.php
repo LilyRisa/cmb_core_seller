@@ -119,6 +119,31 @@ class JtExpressConnectorTest extends TestCase
         $this->assertSame('PP_PM', $biz['payType']);
     }
 
+    public function test_create_shipment_hashes_merchant_password_before_sending(): void
+    {
+        $captured = null;
+        Http::fake(function ($req) use (&$captured) {
+            $captured = $req->data();
+
+            return Http::response(['code' => '1', 'msg' => 'success', 'data' => ['billCode' => 'B1']]);
+        });
+
+        // customerCode/password = ví dụ CHÍNH THỨC từ open.jtexpress.vn/helpCenter → Authentication Tools.
+        (new JtExpressConnector)->createShipment(
+            $this->account(['credentials' => ['customerCode' => '084LC02438', 'password' => 'KGC6jju1']]),
+            [
+                'client_order_code' => 'ORD9',
+                'recipient' => ['name' => 'X', 'phone' => '090', 'address' => 'test', 'province' => 'Hồ Chí Minh', 'ward' => 'Phường 1'],
+            ],
+        );
+
+        $biz = json_decode($captured['bizContent'], true);
+        $this->assertSame('084LC02438', $biz['customerCode']);
+        // Không bao giờ gửi password thô (J&T không nhận plaintext) — phải là bản đã hash.
+        $this->assertSame('4AE2DBF6527EA7C49C59EFF24F6FEA71', $biz['password']);
+        $this->assertNotSame('KGC6jju1', $biz['password']);
+    }
+
     public function test_create_shipment_throws_clear_error_when_recipient_missing_ward(): void
     {
         $this->expectExceptionMessage('Tỉnh/Phường');
