@@ -61,6 +61,7 @@ function AdminPicker({ value, onPick }: { value?: PickedAddress; onPick: (v: Pic
     const [format, setFormat] = useState<AddressFormat>((value?.format as AddressFormat) ?? 'new');
     const [provinceCode, setProvinceCode] = useState<string | undefined>(value?.province_code);
     const [districtCode, setDistrictCode] = useState<string | undefined>(value?.district_code);
+    const [wardCode, setWardCode] = useState<string | undefined>(value?.ward_code);
     const [level, setLevel] = useState<Level>(value?.province_code ? (format === 'old' && !value?.district_code ? 'district' : 'ward') : 'province');
     const [q, setQ] = useState('');
 
@@ -90,22 +91,30 @@ function AdminPicker({ value, onPick }: { value?: PickedAddress; onPick: (v: Pic
         setFormat(f);
         setProvinceCode(undefined);
         setDistrictCode(undefined);
+        setWardCode(undefined);
         setLevel('province');
     };
 
     const selectedProvince = provinces.find((p) => p.code === provinceCode);
     const selectedDistrict = districts.find((d) => d.code === districtCode);
+    const selectedWard = wards.find((w) => w.code === wardCode);
 
     const pickProvince = (p: Province) => {
         setProvinceCode(p.code);
         setDistrictCode(undefined);
+        setWardCode(undefined);
         setLevel(format === 'old' ? 'district' : 'ward');
     };
     const pickDistrict = (d: District) => {
         setDistrictCode(d.code);
+        setWardCode(undefined);
         setLevel('ward');
     };
     const pickWard = (w: Ward) => {
+        // Bấm chọn Xã/Phường KHÔNG tự đóng picker (khác Popover ở CreateOrderPage) khi dùng inline
+        // (vd Cài đặt ĐVVC) — phải tự tô sáng + tích + cập nhật breadcrumb, nếu không nhìn như "bấm
+        // không có phản ứng gì" (bug thật đã gặp: chọn xã cho tài khoản J&T/GHTK).
+        setWardCode(w.code);
         onPick({
             format,
             province: selectedProvince?.name, province_code: selectedProvince?.code,
@@ -116,10 +125,10 @@ function AdminPicker({ value, onPick }: { value?: PickedAddress; onPick: (v: Pic
     };
     const back = () => {
         if (level === 'ward') {
-            if (format === 'old') { setLevel('district'); setDistrictCode(undefined); }
-            else { setLevel('province'); setProvinceCode(undefined); }
+            if (format === 'old') { setLevel('district'); setDistrictCode(undefined); setWardCode(undefined); }
+            else { setLevel('province'); setProvinceCode(undefined); setWardCode(undefined); }
         } else if (level === 'district') {
-            setLevel('province'); setProvinceCode(undefined);
+            setLevel('province'); setProvinceCode(undefined); setWardCode(undefined);
         }
     };
 
@@ -164,7 +173,7 @@ function AdminPicker({ value, onPick }: { value?: PickedAddress; onPick: (v: Pic
                         style={{ cursor: wardParent ? 'pointer' : 'not-allowed', margin: 0, opacity: wardParent ? 1 : 0.5 }}
                         onClick={() => wardParent && setLevel('ward')}
                     >
-                        Phường/Xã: <span style={{ color: '#bfbfbf' }}>chọn…</span>
+                        Phường/Xã: {selectedWard ? selectedWard.name : <span style={{ color: '#bfbfbf' }}>chọn…</span>}
                     </Tag>
                 </Space>
             </Space>
@@ -206,7 +215,7 @@ function AdminPicker({ value, onPick }: { value?: PickedAddress; onPick: (v: Pic
             {level === 'ward' && (
                 <List loading={lw} items={fw} empty={wardParent ? 'Không có phường/xã phù hợp.' : 'Chọn cấp trên trước.'}
                     renderRow={(w) => (
-                        <Row key={w.code} onClick={() => pickWard(w)}>
+                        <Row key={w.code} active={wardCode === w.code} onClick={() => pickWard(w)} suffix={wardCode === w.code ? <CheckOutlined style={{ color: '#1677ff' }} /> : null}>
                             {w.name}
                             {w.division_type && <span className="muted"> · {w.division_type}</span>}
                         </Row>
