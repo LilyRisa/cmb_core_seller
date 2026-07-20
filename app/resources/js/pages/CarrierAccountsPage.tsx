@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    App as AntApp, Alert, Button, Col, Dropdown, Empty, Form, Input, InputNumber, Modal, Radio, Result,
+    App as AntApp, Alert, Button, Col, Collapse, Dropdown, Empty, Form, Input, InputNumber, Modal, Radio, Result,
     Row, Segmented, Select, Space, Spin, Switch, Tag, Tooltip, Typography,
 } from 'antd';
 import type { FormInstance } from 'antd';
 import {
     CheckCircleFilled, CloseCircleFilled, EditOutlined, EllipsisOutlined, KeyOutlined,
-    LoadingOutlined, PlusOutlined, ReloadOutlined, StarFilled, StarOutlined,
+    LoadingOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined, StarFilled, StarOutlined,
     ThunderboltOutlined, WarningFilled,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -143,8 +143,15 @@ export function CarrierAccountsPage() {
     return (
         <div>
             <PageHeader
-                title="Đơn vị vận chuyển"
-                subtitle={`${totalAccounts} tài khoản — ${activeAccountCount} đang hoạt động. Một ĐVVC có thể dùng nhiều tài khoản với alias riêng để tách kho / nhãn hàng.`}
+                title={
+                    <Space size={6} align="center">
+                        Đơn vị vận chuyển
+                        <Tooltip title="Một ĐVVC có thể dùng nhiều tài khoản với alias riêng để tách kho / nhãn hàng.">
+                            <QuestionCircleOutlined style={{ fontSize: 13, color: 'var(--ink-400)' }} />
+                        </Tooltip>
+                    </Space>
+                }
+                subtitle={`${activeAccountCount}/${totalAccounts} tài khoản đang hoạt động`}
                 extra={<Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>}
             />
 
@@ -197,8 +204,7 @@ export function CarrierAccountsPage() {
                 onCancel={() => setRenaming(null)} onOk={onRenameSubmit} confirmLoading={update.isPending}
             >
                 <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
-                    ĐVVC: <b>{renaming ? (CARRIER_META[renaming.carrier]?.name ?? renaming.carrier) : ''}</b>.
-                    Alias giúp phân biệt khi 1 ĐVVC dùng nhiều tài khoản (VD: theo kho, theo nhãn hàng).
+                    ĐVVC: <b>{renaming ? (CARRIER_META[renaming.carrier]?.name ?? renaming.carrier) : ''}</b>
                 </Typography.Paragraph>
                 <Input
                     value={aliasDraft} onChange={(e) => setAliasDraft(e.target.value)} maxLength={120}
@@ -616,12 +622,12 @@ function AddCarrierAccountModal({
         >
             {carrier && (
                 <>
-                    <Alert
-                        type="info" showIcon style={{ marginBottom: 16 }}
-                        message={<><b>Alias</b> là tên gợi nhớ — bạn có thể tạo nhiều tài khoản cho cùng 1 ĐVVC để tách kho, tách nhãn hàng, hoặc tách môi trường (test/production).</>}
-                    />
                     <Form form={form} layout="vertical" preserve={false}>
-                        <Form.Item name="name" label="Tên gợi nhớ (alias)" rules={[{ required: true, message: 'Nhập tên gợi nhớ' }, { max: 120 }]}>
+                        <Form.Item
+                            name="name" label="Tên gợi nhớ (alias)"
+                            rules={[{ required: true, message: 'Nhập tên gợi nhớ' }, { max: 120 }]}
+                            extra="Đặt tên riêng nếu dùng nhiều tài khoản cùng ĐVVC (tách kho / môi trường)."
+                        >
                             <Input placeholder={`VD: ${CARRIER_META[carrier.code]?.name ?? carrier.name} — Kho Hà Nội`} />
                         </Form.Item>
 
@@ -631,7 +637,7 @@ function AddCarrierAccountModal({
                                 {code === 'viettelpost' && (
                                     <Alert
                                         type="info" showIcon style={{ marginBottom: 12 }}
-                                        message={<>Nhập <b>Tài khoản + Mật khẩu</b> Partner Viettel Post, <b>hoặc</b> dán <b>Token</b> tạo trên viettelpost.vn. Chỉ cần 1 trong 2 cách.</>}
+                                        message={<>Chỉ cần <b>1 trong 2</b>: Tài khoản + Mật khẩu, <b>hoặc</b> Token.</>}
                                     />
                                 )}
                                 {credFields.map((f) => (
@@ -653,15 +659,26 @@ function AddCarrierAccountModal({
                         {needsFromAddress && (
                             <>
                                 <Typography.Title level={5} style={{ marginTop: 8, marginBottom: 4, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Địa chỉ kho hàng (người gửi)</Typography.Title>
-                                <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
-                                    {code === 'ghtk'
-                                        ? <>Bắt buộc với GHTK — dùng làm địa chỉ lấy hàng khi tạo vận đơn. GHTK nhận địa chỉ <b>theo tên</b> Tỉnh/Quận/Phường.</>
-                                        : code === 'viettelpost'
-                                            ? <>Bắt buộc với Viettel Post — dùng làm địa chỉ lấy hàng. Chọn Tỉnh/Phường (đơn vị hành chính mới) để lấy <b>mã VTP</b> tạo vận đơn.</>
-                                            : code === 'jt'
-                                                ? <>Bắt buộc với J&amp;T Express — dùng làm địa chỉ lấy hàng. J&amp;T chỉ nhận địa chỉ <b>2 cấp</b> Tỉnh/Phường theo danh mục hành chính mới (không có Quận), nhập theo tên.</>
-                                                : <>Bắt buộc với GHN — dùng để tạo vận đơn. Mã quận/phường <b>tự động tải</b> từ GHN sau khi bạn nhập API Token.</>}
+                                <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 4 }}>
+                                    Bắt buộc — dùng làm địa chỉ lấy hàng khi tạo vận đơn.
                                 </Typography.Paragraph>
+                                <Collapse
+                                    ghost size="small" style={{ marginBottom: 8, marginInlineStart: -12 }}
+                                    items={[{
+                                        key: 'addr-help', label: 'Cách nhập địa chỉ',
+                                        children: (
+                                            <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: 0 }}>
+                                                {code === 'ghtk'
+                                                    ? <>GHTK nhận địa chỉ <b>theo tên</b> Tỉnh/Quận/Phường.</>
+                                                    : code === 'viettelpost'
+                                                        ? <>Chọn Tỉnh/Phường (đơn vị hành chính mới) để lấy <b>mã VTP</b> tạo vận đơn.</>
+                                                        : code === 'jt'
+                                                            ? <>J&amp;T chỉ nhận địa chỉ <b>2 cấp</b> Tỉnh/Phường theo danh mục hành chính mới (không có Quận), nhập theo tên.</>
+                                                            : <>Mã quận/phường <b>tự động tải</b> từ GHN sau khi bạn nhập API Token.</>}
+                                            </Typography.Paragraph>
+                                        ),
+                                    }]}
+                                />
 
                                 {/* Lấy sẵn tên/SĐT/địa chỉ từ hồ sơ người gửi ("Địa chỉ lấy hàng") ở Cài đặt → In. */}
                                 {senders.length > 0 ? (
@@ -710,7 +727,7 @@ function AddCarrierAccountModal({
                         </Form.Item>
 
                         {code === 'jt' && (
-                            <Form.Item name="jt_pay_type" label="Cách trả cước vận chuyển" extra="Trả trước tiền mặt phù hợp với hầu hết seller mới. Đối soát tháng chỉ dùng được nếu bạn đã ký hợp đồng riêng với J&T.">
+                            <Form.Item name="jt_pay_type" label="Cách trả cước vận chuyển" extra="Đối soát tháng chỉ dùng được nếu đã ký hợp đồng riêng với J&T.">
                                 <Radio.Group options={[
                                     { value: 'PP_CASH', label: 'Trả trước tiền mặt' },
                                     { value: 'PP_PM', label: 'Đối soát theo tháng' },
@@ -720,7 +737,7 @@ function AddCarrierAccountModal({
 
                         <Typography.Title level={5} style={{ marginTop: 12, marginBottom: 2, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Cài đặt giao hàng mặc định</Typography.Title>
                         <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
-                            Áp dụng khi tạo vận đơn cho tài khoản này. Đơn thủ công dùng cài đặt của tài khoản <b>mặc định</b>; từng đơn vẫn có thể chỉnh lại.
+                            Đơn thủ công lấy theo tài khoản <b>mặc định</b>; từng đơn vẫn chỉnh được riêng.
                         </Typography.Paragraph>
 
                         <Form.Item label="Kích thước gói mặc định (cm) & cân nặng (g)" style={{ marginBottom: 10 }}>
