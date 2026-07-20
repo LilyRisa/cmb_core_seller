@@ -144,6 +144,46 @@ class JtExpressConnectorTest extends TestCase
         $this->assertNotSame('KGC6jju1', $biz['password']);
     }
 
+    public function test_create_shipment_always_sends_codmoney_and_nonzero_goodsvalue(): void
+    {
+        // J&T từ chối thật ("codMoney is required" / "min goodsValue is 0.01") khi thiếu codMoney hoặc
+        // goodsValue=0 — verify UAT 2026-07-20. Đơn không COD + chưa nhập giá SP vẫn phải gửi đủ 2 field.
+        $captured = null;
+        Http::fake(function ($req) use (&$captured) {
+            $captured = $req->data();
+
+            return Http::response(['code' => '1', 'msg' => 'success', 'data' => ['billCode' => 'B1']]);
+        });
+
+        (new JtExpressConnector)->createShipment($this->account(), [
+            'client_order_code' => 'ORD6',
+            'recipient' => ['name' => 'X', 'phone' => '090', 'address' => 'test', 'province' => 'Hồ Chí Minh', 'ward' => 'Phường 1'],
+        ]);
+
+        $biz = json_decode($captured['bizContent'], true);
+        $this->assertArrayHasKey('codMoney', $biz);
+        $this->assertSame(0, $biz['codMoney']);
+        $this->assertGreaterThan(0, $biz['goodsValue']);
+    }
+
+    public function test_quote_sends_codmoney_and_nonzero_goodsvalue(): void
+    {
+        $captured = null;
+        Http::fake(function ($req) use (&$captured) {
+            $captured = $req->data();
+
+            return Http::response(['code' => '1', 'msg' => 'success', 'data' => ['price' => 100000]]);
+        });
+
+        (new JtExpressConnector)->quote($this->account(), [
+            'recipient' => ['province' => 'Hà Nội', 'ward' => 'Phường Hàng Trống'],
+        ]);
+
+        $biz = json_decode($captured['bizContent'], true);
+        $this->assertArrayHasKey('codMoney', $biz);
+        $this->assertGreaterThan(0, $biz['goodsValue']);
+    }
+
     public function test_create_shipment_throws_clear_error_when_recipient_missing_ward(): void
     {
         $this->expectExceptionMessage('Tỉnh/Phường');

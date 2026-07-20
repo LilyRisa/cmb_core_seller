@@ -134,7 +134,12 @@ class JtExpressConnector extends AbstractCarrierConnector
                 'weight' => $weightKg,
                 'selfAddress' => 1,
                 'isInsured' => 0,
-                'goodsValue' => 0,
+                // goodsValue=0 bị J&T từ chối thật ("min goodsValue is 0.01") dù doc ghi 0 hợp lệ; codMoney
+                // thiếu hẳn cũng bị từ chối ("codMoney is required") dù doc đánh dấu optional (N) — verify
+                // trực tiếp qua UAT thật 2026-07-20, không phải suy đoán. isInsured=0 nên goodsValue placeholder
+                // không ảnh hưởng phí thật, chỉ cần khác 0 để qua validate.
+                'goodsValue' => 1000,
+                'codMoney' => 0,
                 'goodsType' => 'bm000010',
                 'productType' => 'EXPRESS',
                 'sender' => ['prov' => $sender['prov'], 'area' => $sender['area']],
@@ -215,8 +220,11 @@ class JtExpressConnector extends AbstractCarrierConnector
             'sender' => array_filter($sender),
             'receiver' => array_filter($receiver),
             'isInsured' => 0,
-            'goodsValue' => max(0, $totalValue),
-            'codMoney' => $cod > 0 ? $cod : null,
+            // goodsValue=0 (đơn chưa nhập giá SP) và codMoney vắng mặt (không COD) đều bị J&T từ chối thật
+            // ("min goodsValue is 0.01" / "codMoney is required") dù doc ghi cả hai là hợp lệ/optional —
+            // verify qua UAT thật 2026-07-20. codMoney PHẢI luôn có mặt kể cả 0, không được lọc bỏ khi null.
+            'goodsValue' => max(1, $totalValue),
+            'codMoney' => max(0, $cod),
             'remark' => trim((string) ($shipment['delivery_note'] ?? $shipment['content'] ?? '')) ?: null,
             // $packageInfo luôn có ít nhất 'weight' (không bao giờ rỗng) — không cần ternary.
             'packageInfo' => $packageInfo,
@@ -358,7 +366,9 @@ class JtExpressConnector extends AbstractCarrierConnector
         try {
             // Không có endpoint "whoami" — dùng getComCost với payload tối thiểu làm phép thử xác thực.
             $this->client()->getComCost([
-                ...$merchant, 'weight' => 1, 'selfAddress' => 1, 'isInsured' => 0, 'goodsValue' => 0,
+                ...$merchant, 'weight' => 1, 'selfAddress' => 1, 'isInsured' => 0,
+                // goodsValue=0/codMoney vắng mặt bị J&T từ chối thật — xem ghi chú ở quote()/createShipment().
+                'goodsValue' => 1000, 'codMoney' => 0,
                 'goodsType' => 'bm000010', 'productType' => 'EXPRESS',
                 'sender' => ['prov' => 'Hồ Chí Minh', 'area' => 'Phường Bến Nghé'],
                 'receiver' => ['prov' => 'Hà Nội', 'area' => 'Phường Hàng Trống'],
@@ -367,8 +377,10 @@ class JtExpressConnector extends AbstractCarrierConnector
             return ['ok' => true, 'message' => 'Kết nối J&T Express OK.', 'expires_at' => null];
         } catch (\Throwable $e) {
             $m = $e->getMessage();
+            // 'customer not exist' là chuỗi J&T thật trả về (verify UAT 2026-07-20) — không khớp
+            // 'account does not exist' như đoán ban đầu, thêm 'not exist' rộng hơn để bắt cả 2 dạng.
             $isAuth = stripos($m, 'customerCode or password') !== false || stripos($m, 'signature') !== false
-                || stripos($m, 'account does not exist') !== false || stripos($m, 'disable') !== false || stripos($m, 'locked') !== false;
+                || stripos($m, 'not exist') !== false || stripos($m, 'disable') !== false || stripos($m, 'locked') !== false;
 
             return [
                 'ok' => false,
