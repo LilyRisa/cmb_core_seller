@@ -162,7 +162,10 @@ interface ChannelConnector
     /**
      * Fetch the shipping document (label PDF, packing slip, ...) bytes.
      *
-     * @param  array{type?:string,format?:string,externalPackageId?:string,tracking_no?:string,order_item_ids?:list<int>}  $query
+     * `package_count` (tuỳ chọn, Shopee-specific): tổng số kiện của đơn — connector dùng để quyết có gửi
+     * `package_number` cho sàn hay không (một số sàn chỉ chấp nhận khi đơn đã tách ≥2 kiện).
+     *
+     * @param  array{type?:string,format?:string,externalPackageId?:string,tracking_no?:string,order_item_ids?:list<int>,package_count?:int}  $query
      * @return array{filename:string,mime:string,bytes:string}
      */
     public function getShippingDocument(AuthContext $auth, string $externalOrderId, array $query = []): array;

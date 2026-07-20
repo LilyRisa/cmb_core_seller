@@ -420,6 +420,15 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
     {
         $cfg = $this->client->cfg();
         $packageNumber = (string) ($query['externalPackageId'] ?? '');
+        // Shopee CHỈ chấp nhận `package_number` ở get_shipping_document_parameter/create_shipping_document
+        // khi đơn ĐÃ tách (split) thành ≥2 kiện — giống hệt quy tắc đã áp cho ship_order (xem
+        // arrangeShipment() dòng ~282). Đơn 1 kiện (chưa tách, đa số đơn) mà vẫn gửi package_number ⇒ Shopee
+        // trả `error_param` "Invalid package number, please get package number from field package_number
+        // instead of forder_id" — lỗi VĨNH VIỄN (không tự khỏi khi retry, khác lỗi tạm thời khác trong file
+        // này) vì package_number không bao giờ hợp lệ cho đơn 1 kiện. Bug thật gặp 2026-07-20 — tenant 1,
+        // 4 đơn kẹt "chưa lấy được phiếu giao hàng" retry 7-9 lần vẫn lỗi y hệt mỗi lần.
+        $sendPackageNumber = ((int) ($query['package_count'] ?? 1)) > 1;
+        $packageNumberForApi = $sendPackageNumber ? $packageNumber : '';
 
         // create_shipping_document YÊU CẦU `tracking_number` cho kênh tích hợp (SPX...) — THIẾU ⇒
         // `logistics.tracking_number_invalid` (chính là lý do tem Shopee không bao giờ lấy được). Ưu tiên mã
@@ -431,12 +440,12 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
 
         // Loại tem theo kênh: suggest_shipping_document_type (vd SPX gợi ý THERMAL_AIR_WAYBILL; có kênh chỉ cho
         // THERMAL). create/result/download PHẢI cùng MỘT loại. Fallback config nếu không lấy được.
-        $docType = $this->resolveDocumentType($auth, $externalOrderId, $packageNumber)
+        $docType = $this->resolveDocumentType($auth, $externalOrderId, $packageNumberForApi)
             ?: (string) ($cfg['document_type'] ?? 'NORMAL_AIR_WAYBILL');
 
         $orderEntry = array_filter([
             'order_sn' => $externalOrderId,
-            'package_number' => $packageNumber ?: null,
+            'package_number' => $packageNumberForApi ?: null,
             'tracking_number' => $trackingNo ?: null,
             'shipping_document_type' => $docType,
         ]);
@@ -466,7 +475,7 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
         $ready = false;
         for ($i = 0; $i < $attempts; $i++) {
             $res = $this->client->shopPost($auth, $this->client->endpoint('get_document_result'), [], [
-                'order_list' => [array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null, 'shipping_document_type' => $docType])],
+                'order_list' => [array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumberForApi ?: null, 'shipping_document_type' => $docType])],
             ]);
             $status = (string) ($res['result_list'][0]['status'] ?? 'PROCESSING');
             if ($status === 'READY') {
@@ -485,7 +494,7 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
         }
 
         $bytes = $this->client->shopPostRaw($auth, $this->client->endpoint('download_document'), [
-            'order_list' => [array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null, 'shipping_document_type' => $docType])],
+            'order_list' => [array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumberForApi ?: null, 'shipping_document_type' => $docType])],
         ]);
 
         return ['filename' => 'shopee-'.$externalOrderId.'.pdf', 'mime' => 'application/pdf', 'bytes' => $bytes];

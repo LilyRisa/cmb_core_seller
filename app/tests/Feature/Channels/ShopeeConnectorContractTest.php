@@ -366,6 +366,61 @@ class ShopeeConnectorContractTest extends TestCase
         });
     }
 
+    public function test_get_shipping_document_omits_package_number_for_unsplit_order(): void
+    {
+        // Cùng gotcha đã gặp & fix ở ship_order (xem test_arrange_shipment_omits_package_number_for_unsplit_order)
+        // nhưng bị bỏ sót ở luồng lấy tem: đơn 1 kiện (chưa tách) mà gửi package_number ⇒ Shopee lỗi
+        // error_param "Invalid package number, please get package number from field package_number instead
+        // of forder_id" — LẶP VĨNH VIỄN không tự khỏi khi retry (khác lỗi tạm thời khác). Bug thật gặp
+        // 2026-07-20, tenant 1, 4 đơn kẹt "chưa lấy được phiếu giao hàng" dù retry 7-9 lần.
+        Http::fake([
+            '*/api/v2/logistics/get_shipping_document_parameter*' => Http::response(ShopeeFixtures::documentParameter('THERMAL_AIR_WAYBILL'), 200),
+            '*/api/v2/logistics/create_shipping_document*' => Http::response(ShopeeFixtures::createDocument(), 200),
+            '*/api/v2/logistics/get_shipping_document_result*' => Http::response(ShopeeFixtures::documentResult('READY'), 200),
+            '*/api/v2/logistics/download_shipping_document*' => Http::response('%PDF-1.4 fake', 200, ['Content-Type' => 'application/pdf']),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $this->connector()->getShippingDocument($auth, 'SN_1', [
+            'externalPackageId' => 'PKG_1', 'tracking_no' => 'SPXVN123', 'package_count' => 1,
+        ]);
+
+        foreach (['get_shipping_document_parameter', 'create_shipping_document', 'get_shipping_document_result', 'download_shipping_document'] as $path) {
+            Http::assertSent(function (\Illuminate\Http\Client\Request $r) use ($path) {
+                if (! str_contains($r->url(), "/api/v2/logistics/{$path}")) {
+                    return false;
+                }
+                $entry = $r->data()['order_list'][0] ?? [];
+
+                return ! array_key_exists('package_number', $entry);
+            });
+        }
+    }
+
+    public function test_get_shipping_document_sends_package_number_for_split_order(): void
+    {
+        // Đơn ĐÃ tách (≥2 kiện) ⇒ create_shipping_document PHẢI kèm package_number để chỉ định đúng kiện.
+        Http::fake([
+            '*/api/v2/logistics/get_shipping_document_parameter*' => Http::response(ShopeeFixtures::documentParameter('THERMAL_AIR_WAYBILL'), 200),
+            '*/api/v2/logistics/create_shipping_document*' => Http::response(ShopeeFixtures::createDocument(), 200),
+            '*/api/v2/logistics/get_shipping_document_result*' => Http::response(ShopeeFixtures::documentResult('READY'), 200),
+            '*/api/v2/logistics/download_shipping_document*' => Http::response('%PDF-1.4 fake', 200, ['Content-Type' => 'application/pdf']),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $this->connector()->getShippingDocument($auth, 'SN_1', [
+            'externalPackageId' => 'PKG_1', 'tracking_no' => 'SPXVN123', 'package_count' => 2,
+        ]);
+
+        Http::assertSent(function (\Illuminate\Http\Client\Request $r) {
+            if (! str_contains($r->url(), '/api/v2/logistics/create_shipping_document')) {
+                return false;
+            }
+
+            return ($r->data()['order_list'][0]['package_number'] ?? null) === 'PKG_1';
+        });
+    }
+
     public function test_get_shipping_document_surfaces_batch_fail_reason(): void
     {
         // Shopee create_shipping_document trả `common.batch_api_all_failed` ở envelope, lý do THẬT nằm trong

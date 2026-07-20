@@ -264,6 +264,9 @@ class ShipmentService
                     // gọi lại get_tracking_number; rỗng thì connector tự lấy.
                     'tracking_no' => (string) $shipment->tracking_no,
                     'order_item_ids' => $itemIds,
+                    // Shopee CHỈ chấp nhận package_number khi đơn đã tách ≥2 kiện (xem ShopeeConnector::
+                    // getShippingDocument) — đơn 1 kiện (đa số) mà gửi package_number ⇒ lỗi vĩnh viễn.
+                    'package_count' => count((array) ($order->packages ?? [])),
                 ]);
                 $bytes = (string) $doc['bytes'];
                 if ($bytes === '') {
