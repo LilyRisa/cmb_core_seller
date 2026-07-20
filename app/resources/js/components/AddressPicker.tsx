@@ -251,8 +251,13 @@ function CustomerAddressTab({ addresses, onPick }: { addresses: CustomerAddress[
         <Radio.Group style={{ width: '100%' }} onChange={(e) => {
             const a = addresses[e.target.value];
             if (!a) return;
+            // format phải suy theo DỮ LIỆU THẬT của địa chỉ khách, không hardcode 'old': khách có đơn sau
+            // cải cách hành chính (chuẩn mới 2 cấp) thì địa chỉ lưu KHÔNG có district — hardcode 'old' ép
+            // validate ở CreateOrderPage đòi Quận/Huyện dù đã đủ Tỉnh+Xã ⇒ báo sai "thiếu địa chỉ" dù ô
+            // input đã điền đủ. Bug thật gặp 2026-07-20.
+            const hasDistrict = !!(a.district || a.district_id != null);
             onPick({
-                format: 'old',
+                format: hasDistrict ? 'old' : 'new',
                 province: (a.province ?? a.city) as string | undefined,
                 province_code: a.province_id != null ? String(a.province_id) : undefined,
                 district: a.district ?? undefined,
