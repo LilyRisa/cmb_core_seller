@@ -96,6 +96,21 @@ class FindByNameTest extends TestCase
         $this->assertCount(2, $r->candidates);
     }
 
+    public function test_soft_deleted_duplicate_is_excluded_from_matching(): void
+    {
+        // Bug thật 2026-07-21: matcher dùng withoutGlobalScopes() (bỏ CẢ SoftDeletingScope) ⇒ 4 bản
+        // trùng tên đã bị tenant xoá mềm vẫn tính vào so khớp ⇒ luôn ambiguous, không bao giờ gửi được
+        // ảnh dù chỉ còn đúng 1 bản active. Fix: chỉ bỏ TenantScope, giữ nguyên SoftDeletingScope.
+        $this->item(1, 'Váy body dệt kim')->delete();
+        $this->item(1, 'Váy body dệt kim')->delete();
+        $kept = $this->item(1, 'Váy body dệt kim');
+
+        $r = app(VisualItemSearch::class)->findByName(1, 'ảnh váy body dệt kim');
+
+        $this->assertSame(VisualMatchResult::STATUS_MATCHED, $r->status);
+        $this->assertSame($kept->id, $r->item->itemId);
+    }
+
     public function test_images_for_item_returns_primary_first(): void
     {
         Storage::fake('local');

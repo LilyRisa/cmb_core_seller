@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\VisualSearch\Services;
 
 use CMBcoreSeller\Integrations\Embedding\Image\Contracts\ImageEmbedder;
 use CMBcoreSeller\Integrations\Vector\Contracts\VectorStore;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Modules\VisualSearch\Contracts\VisualItemSearch;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualImageInput;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualItemCandidate;
@@ -75,7 +76,10 @@ class VisualMatcher implements VisualItemSearch
         arsort($itemScore);
 
         $ids = array_keys($itemScore);
-        $items = VisualTrainingItem::withoutGlobalScopes()
+        // withoutGlobalScope(TenantScope) CHỈ bỏ tenant scope (job không có tenant context) — GIỮ
+        // SoftDeletingScope, nếu không item đã xoá mềm vẫn bị khớp/gửi ảnh (bug thật gặp 2026-07-21:
+        // tenant xoá 4 bản trùng tên, matcher vẫn thấy đủ 5 ⇒ luôn ambiguous, không bao giờ gửi được ảnh).
+        $items = VisualTrainingItem::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
             ->whereIn('id', $ids)
             ->get()
@@ -153,7 +157,8 @@ class VisualMatcher implements VisualItemSearch
         }
 
         // Danh mục training item nhỏ ⇒ nạp rồi so khớp chứa-chuỗi trong PHP (portable, không phụ thuộc DB collation).
-        $items = VisualTrainingItem::withoutGlobalScopes()
+        // withoutGlobalScope(TenantScope) CHỈ bỏ tenant scope — GIỮ SoftDeletingScope (xem ghi chú ở lookup()).
+        $items = VisualTrainingItem::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
             ->orderByDesc('id')
             ->limit(500)
@@ -247,13 +252,13 @@ class VisualMatcher implements VisualItemSearch
 
     public function imagesForItem(int $tenantId, int $itemId, int $limit = 3): array
     {
-        $item = VisualTrainingItem::withoutGlobalScopes()
+        $item = VisualTrainingItem::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)->find($itemId);
         if ($item === null) {
             return [];
         }
 
-        $images = VisualTrainingImage::withoutGlobalScopes()
+        $images = VisualTrainingImage::withoutGlobalScope(TenantScope::class)
             ->where('item_id', $item->id)
             ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [(int) $item->primary_image_id])
             ->orderBy('sort_order')
@@ -320,8 +325,8 @@ class VisualMatcher implements VisualItemSearch
     private function representativeDataUrl(VisualTrainingItem $item): ?string
     {
         $img = $item->primary_image_id
-            ? VisualTrainingImage::withoutGlobalScopes()->find($item->primary_image_id)
-            : VisualTrainingImage::withoutGlobalScopes()->where('item_id', $item->id)->orderBy('sort_order')->first();
+            ? VisualTrainingImage::withoutGlobalScope(TenantScope::class)->find($item->primary_image_id)
+            : VisualTrainingImage::withoutGlobalScope(TenantScope::class)->where('item_id', $item->id)->orderBy('sort_order')->first();
 
         if ($img === null) {
             return null;
