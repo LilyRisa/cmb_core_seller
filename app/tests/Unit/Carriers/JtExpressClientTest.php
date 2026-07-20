@@ -18,7 +18,7 @@ class JtExpressClientTest extends TestCase
     {
         $captured = null;
         Http::fake(function ($req) use (&$captured) {
-            $captured = $req->data();
+            $captured = $req;
 
             return Http::response(['code' => '1', 'msg' => 'success', 'data' => [
                 'txlogisticId' => '123456789101', 'billCode' => '802400616352', 'sortLine' => '800-028A04-',
@@ -29,10 +29,15 @@ class JtExpressClientTest extends TestCase
         $data = $this->client()->addOrder(['customerCode' => '024E000014', 'txlogisticId' => '123456789101']);
 
         $this->assertSame('802400616352', $data['billCode']);
-        $this->assertSame('669375073659916329', $captured['apiAccount']);
-        $this->assertArrayHasKey('digest', $captured);
-        $this->assertArrayHasKey('timestamp', $captured);
-        $biz = json_decode($captured['bizContent'], true);
+        // apiAccount/digest/timestamp là HTTP HEADER (doc J&T tách riêng mục "Headers") — KHÔNG phải form
+        // field. Bug thật gặp 2026-07-20: gửi ở body ⇒ J&T luôn báo "digest is empty!" dù digest tính đúng.
+        $this->assertSame(['669375073659916329'], $captured->header('apiAccount'));
+        $this->assertNotSame([], $captured->header('digest'));
+        $this->assertNotSame([], $captured->header('timestamp'));
+        $body = $captured->data();
+        $this->assertArrayNotHasKey('apiAccount', $body);
+        $this->assertArrayNotHasKey('digest', $body);
+        $biz = json_decode($body['bizContent'], true);
         $this->assertSame('024E000014', $biz['customerCode']);
         Http::assertSent(fn ($req) => str_contains($req->url(), '/api/order/addOrder'));
     }

@@ -10,9 +10,12 @@ use RuntimeException;
 /**
  * Thin HTTP client cho J&T Express Open API (open.jtexpress.vn/apiDoc — xem
  * docs/superpowers/research/2026-07-17-jt-express-api-reference.md). Mọi request: POST
- * application/x-www-form-urlencoded, 3 field cấp ngoài `apiAccount`/`digest`/`timestamp` + `bizContent`
- * (JSON string của business params), ký bằng JtExpressSigner. Response envelope: `{code, msg, data}` —
- * `code !== '1'` ném RuntimeException với message của J&T (xem bảng lỗi trong file tham khảo).
+ * application/x-www-form-urlencoded — `apiAccount`/`digest`/`timestamp` là HTTP HEADER (mục "Headers"
+ * riêng trong doc từng endpoint, KHÔNG phải form field — bug thật gặp 2026-07-20: gửi cả 3 vào body ⇒
+ * J&T luôn trả `145003052 digest is empty!` dù digest tính đúng, vì server tìm ở header không thấy).
+ * Body chỉ có `bizContent` (JSON string của business params), ký bằng JtExpressSigner. Response envelope:
+ * `{code, msg, data}` — `code` có thể là string HOẶC int tuỳ endpoint (đã verify thật qua UAT); so sánh
+ * lỏng. `code != '1'` ném RuntimeException với message của J&T (xem bảng lỗi trong file tham khảo).
  */
 class JtExpressClient
 {
@@ -44,15 +47,18 @@ class JtExpressClient
         $timestamp = (int) round(microtime(true) * 1000);
         $digest = JtExpressSigner::sign((string) $json, $this->privateKey);
 
-        $res = $this->http()->post($path, [
-            'apiAccount' => $this->apiAccount,
-            'digest' => $digest,
-            'timestamp' => $timestamp,
-            'bizContent' => $json,
-        ]);
+        // apiAccount/digest/timestamp là HTTP HEADER theo doc J&T — verify thật 2026-07-20: gửi ở body
+        // (form field) ⇒ J&T LUÔN báo "digest is empty!" bất kể digest tính đúng hay credentials đúng/sai.
+        $res = $this->http()
+            ->withHeaders([
+                'apiAccount' => $this->apiAccount,
+                'digest' => $digest,
+                'timestamp' => (string) $timestamp,
+            ])
+            ->post($path, ['bizContent' => $json]);
 
         $body = (array) $res->json();
-        if (($body['code'] ?? null) !== '1') {
+        if (! isset($body['code']) || (string) $body['code'] !== '1') {
             throw new RuntimeException((string) ($body['msg'] ?? $this->httpError($res)));
         }
 
