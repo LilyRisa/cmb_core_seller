@@ -17,6 +17,7 @@ import {
 } from '@admin/lib/admin';
 import { errorMessage } from '@/lib/api';
 import { formatDate } from '@/lib/format';
+import { TenantPicker } from '@admin/components/TenantPicker';
 
 const KIND_LABEL: Record<VoucherKind, string> = {
     percent: '% Giảm giá',
@@ -174,13 +175,11 @@ function CreateVoucherModal({ open, onClose }: { open: boolean; onClose: () => v
                 initialValues={{ kind: 'percent' as VoucherKind, max_redemptions: -1 }}
                 onFinish={(v) => {
                     const expiresAt = v.expires_at as Dayjs | undefined;
-                    const tenantIds = String(v.valid_tenant_ids ?? '').trim();
+                    const tenantIds = (v.valid_tenant_ids ?? []) as number[];
                     create.mutate({
                         ...v,
                         expires_at: expiresAt ? expiresAt.toISOString() : undefined,
-                        valid_tenant_ids: tenantIds === ''
-                            ? undefined
-                            : tenantIds.split(',').map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0),
+                        valid_tenant_ids: tenantIds.length === 0 ? undefined : tenantIds,
                     }, {
                         onSuccess: () => { message.success('Đã tạo voucher.'); form.resetFields(); onClose(); },
                         onError: (e) => message.error(errorMessage(e, 'Không tạo được.')),
@@ -236,8 +235,8 @@ function CreateVoucherModal({ open, onClose }: { open: boolean; onClose: () => v
                 <Form.Item name="expires_at" label="Hết hạn (để trống = vĩnh viễn)">
                     <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
                 </Form.Item>
-                <Form.Item name="valid_tenant_ids" label="Chỉ áp dụng cho tenant ID cụ thể (cách bằng dấu phẩy, để trống = mọi tenant)">
-                    <Input placeholder="VD: 12, 34" />
+                <Form.Item name="valid_tenant_ids" label="Chỉ áp dụng cho tenant cụ thể (để trống = mọi tenant)">
+                    <TenantPicker mode="multiple" placeholder="Tìm theo mã / tên / email…" />
                 </Form.Item>
                 <Form.Item name="description" label="Ghi chú nội bộ">
                     <Input.TextArea rows={2} />
@@ -336,8 +335,8 @@ function VoucherDetailDrawer({ voucherId, onClose }: { voucherId: number | null;
                                 });
                             }}
                         >
-                            <Form.Item name="tenant_id" label="Tenant ID" rules={[{ required: true }]}>
-                                <InputNumber style={{ width: '100%' }} placeholder="VD: 12" />
+                            <Form.Item name="tenant_id" label="Tenant" rules={[{ required: true }]}>
+                                <TenantPicker placeholder="Tìm theo mã / tên / email…" />
                             </Form.Item>
                             <Form.Item name="reason" label="Lý do (≥10 ký tự)" rules={[{ required: true, min: 10 }]}>
                                 <Input.TextArea rows={3} placeholder="VD: Khách VIP — quà sinh nhật" />

@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { formatDateTimeSeconds } from '@/lib/format';
 import { useAdminInvoices, type AdminInvoiceHistoryRow, type AdminPayment } from '@admin/lib/admin';
+import { TenantPicker } from '@admin/components/TenantPicker';
 
 const { RangePicker } = DatePicker;
 
@@ -26,7 +27,7 @@ function formatMoney(v: number): string {
 
 export function AdminInvoicesPage() {
     const [status, setStatus] = useState('');
-    const [tenantId, setTenantId] = useState('');
+    const [tenantId, setTenantId] = useState<number | undefined>(undefined);
     const [q, setQ] = useState('');
     const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
     const [page, setPage] = useState(1);
@@ -34,7 +35,7 @@ export function AdminInvoicesPage() {
 
     const filters = useMemo(() => ({
         status: status || undefined,
-        tenant_id: tenantId ? Number(tenantId) : undefined,
+        tenant_id: tenantId,
         q: q || undefined,
         date_from: range?.[0]?.toISOString(),
         date_to: range?.[1]?.toISOString(),
@@ -76,7 +77,7 @@ export function AdminInvoicesPage() {
             <Card>
                 <Space style={{ marginBottom: 12 }} wrap>
                     <Segmented options={STATUS_OPTIONS} value={status} onChange={(v) => { setStatus(v as string); setPage(1); }} />
-                    <Input placeholder="tenant_id" value={tenantId} onChange={(e) => { setTenantId(e.target.value); setPage(1); }} style={{ width: 120 }} />
+                    <TenantPicker value={tenantId} onChange={(v) => { setTenantId(v); setPage(1); }} placeholder="Tenant (mã/tên/email)" style={{ width: 220 }} />
                     <Input.Search placeholder="Tìm mã hóa đơn" value={q} onChange={(e) => setQ(e.target.value)} onSearch={() => setPage(1)} style={{ width: 220 }} allowClear />
                     <RangePicker showTime onChange={(v) => { setRange(v as [dayjs.Dayjs, dayjs.Dayjs] | null); setPage(1); }} />
                 </Space>

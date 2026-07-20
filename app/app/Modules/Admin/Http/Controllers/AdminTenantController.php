@@ -51,9 +51,13 @@ class AdminTenantController extends Controller
 
         $query = Tenant::query()->orderByDesc('created_at');
         if ($q !== '') {
+            // Search theo tên, mã shop (`code` — hiển thị ở Cài đặt > Thành viên), slug, hoặc email chủ shop —
+            // dùng cho TenantPicker (admin chọn tenant theo mã/tên/email thay vì gõ ID số).
             $query->where(function ($w) use ($q) {
                 $w->where('name', 'like', "%{$q}%")
-                    ->orWhere('slug', 'like', "%{$q}%");
+                    ->orWhere('slug', 'like', "%{$q}%")
+                    ->orWhere('code', 'like', "%{$q}%")
+                    ->orWhereHas('users', fn ($u) => $u->where('email', 'like', "%{$q}%"));
             });
         }
         if ($suspended) {
@@ -412,6 +416,7 @@ class AdminTenantController extends Controller
             'id' => $tenant->id,
             'name' => $tenant->name,
             'slug' => $tenant->slug,
+            'code' => $tenant->code,
             'status' => $tenant->status,
             'created_at' => $tenant->created_at?->toIso8601String(),
             'owner' => $owner && $owner->user ? [

@@ -5,12 +5,13 @@ import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { formatDateTimeSeconds } from '@/lib/format';
 import { useAdminAuditLogs, type AdminAuditLogRow } from '@admin/lib/admin';
+import { TenantPicker } from '@admin/components/TenantPicker';
 
 const { RangePicker } = DatePicker;
 
 export function AdminAuditLogsPage() {
     const [action, setAction] = useState('');
-    const [tenantId, setTenantId] = useState<string>('');
+    const [tenantId, setTenantId] = useState<number | undefined>(undefined);
     const [userId, setUserId] = useState<string>('');
     const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
     const [page, setPage] = useState(1);
@@ -18,7 +19,7 @@ export function AdminAuditLogsPage() {
 
     const filters = useMemo(() => ({
         action: action || undefined,
-        tenant_id: tenantId ? Number(tenantId) : undefined,
+        tenant_id: tenantId,
         user_id: userId ? Number(userId) : undefined,
         from: range?.[0]?.toISOString(),
         to: range?.[1]?.toISOString(),
@@ -65,7 +66,7 @@ export function AdminAuditLogsPage() {
                         onChange={(e) => { setAction(e.target.value); setPage(1); }}
                         style={{ width: 280 }}
                     />
-                    <Input placeholder="tenant_id" value={tenantId} onChange={(e) => { setTenantId(e.target.value); setPage(1); }} style={{ width: 120 }} />
+                    <TenantPicker value={tenantId} onChange={(v) => { setTenantId(v); setPage(1); }} placeholder="Tenant (mã/tên/email)" style={{ width: 220 }} />
                     <Input placeholder="user_id" value={userId} onChange={(e) => { setUserId(e.target.value); setPage(1); }} style={{ width: 120 }} />
                     <RangePicker showTime onChange={(v) => { setRange(v as [dayjs.Dayjs, dayjs.Dayjs] | null); setPage(1); }} />
                 </Space>

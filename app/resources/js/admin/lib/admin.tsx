@@ -29,6 +29,7 @@ export interface AdminTenantSummary {
     id: number;
     name: string;
     slug: string;
+    code: string;
     status: string;
     created_at: string | null;
     owner: AdminOwner | null;

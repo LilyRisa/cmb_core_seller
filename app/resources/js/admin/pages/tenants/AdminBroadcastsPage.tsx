@@ -4,6 +4,7 @@ import { SendOutlined, NotificationOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { formatDate } from '@/lib/format';
 import { useAdminBroadcasts, useAdminCreateBroadcast, type AdminBroadcastRow } from '@admin/lib/admin';
+import { TenantPicker } from '@admin/components/TenantPicker';
 import { errorMessage } from '@/lib/api';
 
 export function AdminBroadcastsPage() {
@@ -45,7 +46,7 @@ export function AdminBroadcastsPage() {
                     onFinish={(v) => {
                         const audience: { kind: string; tenant_ids?: number[] } = { kind: v.audience_kind };
                         if (v.audience_kind === 'tenant_ids') {
-                            audience.tenant_ids = String(v.tenant_ids ?? '').split(',').map(s => Number(s.trim())).filter(Boolean);
+                            audience.tenant_ids = (v.tenant_ids ?? []) as number[];
                         }
                         create.mutate({ subject: v.subject, body_markdown: v.body_markdown, audience }, {
                             onSuccess: (b) => { message.success(`Đã gửi tới ${b.sent_count}/${b.recipient_count} người.`); form.resetFields(); },
@@ -67,8 +68,8 @@ export function AdminBroadcastsPage() {
 
                     <Form.Item shouldUpdate={(p, c) => p.audience_kind !== c.audience_kind} noStyle>
                         {({ getFieldValue }) => getFieldValue('audience_kind') === 'tenant_ids' && (
-                            <Form.Item name="tenant_ids" label="Tenant IDs (cách bằng dấu phẩy)" rules={[{ required: true }]}>
-                                <Input placeholder="12, 34, 56" />
+                            <Form.Item name="tenant_ids" label="Tenant cụ thể" rules={[{ required: true }]}>
+                                <TenantPicker mode="multiple" placeholder="Tìm theo mã / tên / email…" />
                             </Form.Item>
                         )}
                     </Form.Item>
