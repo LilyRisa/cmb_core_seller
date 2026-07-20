@@ -252,12 +252,6 @@ function CarrierCard({
                 </div>
             </div>
 
-            {carrier.capabilities.length > 0 && (
-                <div className="carrier-card__caps">
-                    {carrier.capabilities.map((c) => <span key={c} className="cap-chip">{CAPABILITY_LABEL[c] ?? c}</span>)}
-                </div>
-            )}
-
             <div className="carrier-card__divider">
                 <span>Tài khoản</span>
                 {count > 3 && <a onClick={() => setExpand((e) => !e)}>{expand ? 'Thu gọn' : `Xem cả ${count}`}</a>}
@@ -1387,18 +1381,6 @@ const GHN_ADDR_CSS = `
 .ghn-addr__banner b{ font-weight: 600; }
 `;
 
-// ---- Capability labels & inline CSS ---------------------------------------
-
-const CAPABILITY_LABEL: Record<string, string> = {
-    create_shipment: 'Tạo vận đơn',
-    cancel_shipment: 'Huỷ vận đơn',
-    track: 'Tra cứu',
-    webhook: 'Webhook',
-    print_label: 'In tem',
-    cod: 'COD',
-    refund: 'Hoàn hàng',
-};
-
 // CSS scoped trong page — đồng bộ với Minimal Ecommerce theme (white + blue).
 const CARRIER_CARD_CSS = `
 .carrier-card{
@@ -1457,19 +1439,6 @@ const CARRIER_CARD_CSS = `
     color: var(--ink-400);
     font-family: var(--font-sans);
     font-weight: 500;
-}
-.carrier-card__caps{
-    display:flex; flex-wrap:wrap; gap:4px;
-    margin: 4px 0 12px;
-}
-.cap-chip{
-    font-size: 10.5px;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: var(--blue-50);
-    color: var(--blue-700);
-    border: 1px solid var(--blue-100);
-    letter-spacing: .02em;
 }
 .carrier-card__divider{
     display:flex; align-items:center; gap:8px;
