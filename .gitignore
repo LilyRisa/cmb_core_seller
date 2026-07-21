@@ -35,3 +35,4 @@ desktop.ini
 
 # Note: Laravel app/ has its own .gitignore (vendor, node_modules, public/build, ...).
 # sdk_tiktok_seller/ has its own .gitignore (node_modules, dist, ...).
+tablet-audit/
