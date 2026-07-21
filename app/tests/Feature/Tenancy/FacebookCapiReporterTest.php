@@ -6,6 +6,7 @@ use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Services\FacebookCapiReporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -72,5 +73,21 @@ class FacebookCapiReporterTest extends TestCase
 
         $this->assertTrue($sent);
         Http::assertNothingSent();
+    }
+
+    public function test_returns_false_without_throwing_on_connection_failure(): void
+    {
+        Http::fake(['graph.facebook.com/*' => function () {
+            throw new ConnectionException('Connection timed out');
+        }]);
+        app(SystemSettingService::class)->set('growth.facebook.enabled', true);
+        app(SystemSettingService::class)->set('growth.facebook.pixel_id', 'PIXEL_1');
+        app(SystemSettingService::class)->set('growth.facebook.capi_access_token', 'TOKEN_1');
+        $tenant = $this->makeTenant(['event_id' => 'evt-2']);
+
+        $sent = app(FacebookCapiReporter::class)->reportCompleteRegistration($tenant, 'owner@example.com');
+
+        $this->assertFalse($sent);
+        $this->assertArrayNotHasKey('capi_reported_at', $tenant->fresh()->acquisition ?? []);
     }
 }

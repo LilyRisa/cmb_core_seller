@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Tenancy\Services;
 
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -64,7 +65,17 @@ class FacebookCapiReporter
             $payload['test_event_code'] = $testCode;
         }
 
-        $res = Http::post('https://graph.facebook.com/'.self::GRAPH_VERSION."/{$pixelId}/events", $payload);
+        try {
+            $res = Http::post('https://graph.facebook.com/'.self::GRAPH_VERSION."/{$pixelId}/events", $payload);
+        } catch (ConnectionException $e) {
+            // Lỗi mạng/timeout — không phải câu trả lời dứt khoát từ Graph, best-effort nên
+            // không throw (không được làm hỏng luồng đăng ký).
+            Log::warning('tenancy.growth.fb_capi_report.failed', [
+                'tenant_id' => $tenant->getKey(), 'connection_exception' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
 
         if (! $res->successful()) {
             Log::warning('tenancy.growth.fb_capi_report.failed', [
