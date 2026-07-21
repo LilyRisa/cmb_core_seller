@@ -108,13 +108,14 @@ class AdminUserController extends Controller
     }
 
     /** POST /api/v1/admin/users/{id}/suspend */
-    public function suspend(int $id): JsonResponse
+    public function suspend(Request $request, int $id): JsonResponse
     {
+        $data = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:500']]);
         $u = User::query()->findOrFail($id);
         if ($u->suspended_at === null) {
             $u->forceFill(['suspended_at' => now()])->save();
         }
-        AuditLog::record('admin.user.suspend', $u);
+        AuditLog::record('admin.user.suspend', $u, ['reason' => $data['reason']]);
 
         return response()->json(['data' => [
             'id' => $u->id,
@@ -123,13 +124,14 @@ class AdminUserController extends Controller
     }
 
     /** POST /api/v1/admin/users/{id}/reactivate */
-    public function reactivate(int $id): JsonResponse
+    public function reactivate(Request $request, int $id): JsonResponse
     {
+        $data = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:500']]);
         $u = User::query()->findOrFail($id);
         if ($u->suspended_at !== null) {
             $u->forceFill(['suspended_at' => null])->save();
         }
-        AuditLog::record('admin.user.reactivate', $u);
+        AuditLog::record('admin.user.reactivate', $u, ['reason' => $data['reason']]);
 
         return response()->json(['data' => ['id' => $u->id, 'suspended_at' => null]]);
     }

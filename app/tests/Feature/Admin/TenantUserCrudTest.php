@@ -5,6 +5,7 @@ namespace Tests\Feature\Admin;
 use CMBcoreSeller\Models\AdminUser;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
+use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -55,7 +56,8 @@ class TenantUserCrudTest extends TestCase
     {
         $this->bootstrap();
         $u = User::factory()->create();
-        $this->postJson("/api/v1/admin/users/{$u->id}/suspend")->assertOk();
+        $this->postJson("/api/v1/admin/users/{$u->id}/suspend", ['reason' => 'Nghi ngờ gian lận đơn hàng.'])
+            ->assertOk();
         $this->assertNotNull($u->fresh()->suspended_at);
     }
 
@@ -63,8 +65,27 @@ class TenantUserCrudTest extends TestCase
     {
         $this->bootstrap();
         $u = User::factory()->create(['suspended_at' => now()]);
-        $this->postJson("/api/v1/admin/users/{$u->id}/reactivate")->assertOk();
+        $this->postJson("/api/v1/admin/users/{$u->id}/reactivate", ['reason' => 'Đã xác minh lại danh tính khách hàng.'])
+            ->assertOk();
         $this->assertNull($u->fresh()->suspended_at);
+    }
+
+    public function test_suspend_requires_reason(): void
+    {
+        $this->bootstrap();
+        $u = User::factory()->create();
+        $this->postJson("/api/v1/admin/users/{$u->id}/suspend", ['reason' => 'ngắn'])
+            ->assertStatus(422);
+        $this->postJson("/api/v1/admin/users/{$u->id}/suspend")
+            ->assertStatus(422);
+    }
+
+    public function test_reactivate_requires_reason(): void
+    {
+        $this->bootstrap();
+        $u = User::factory()->create(['suspended_at' => now()]);
+        $this->postJson("/api/v1/admin/users/{$u->id}/reactivate")
+            ->assertStatus(422);
     }
 
     public function test_reset_password_sets_new_hash(): void
@@ -79,10 +100,18 @@ class TenantUserCrudTest extends TestCase
     {
         $this->bootstrap();
         $u = User::factory()->create();
-        $this->postJson("/api/v1/admin/users/{$u->id}/suspend")->assertOk();
+        $this->postJson("/api/v1/admin/users/{$u->id}/suspend", ['reason' => 'Nghi ngờ gian lận đơn hàng.'])
+            ->assertOk();
         $this->assertDatabaseHas('audit_logs', [
             'action' => 'admin.user.suspend',
             'auditable_id' => $u->id,
         ]);
+
+        $log = AuditLog::query()
+            ->where('action', 'admin.user.suspend')
+            ->where('auditable_id', $u->id)
+            ->latest('id')
+            ->first();
+        $this->assertSame('Nghi ngờ gian lận đơn hàng.', $log->changes['reason'] ?? null);
     }
 }

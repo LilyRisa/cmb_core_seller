@@ -341,8 +341,8 @@ Super-admin xuyên tenant. Spec 2026-05-17 đã tách auth: super-admin ở bả
 | GET | `/api/v1/admin/admin-users/{id}` | web + `auth:admin_web` | Chi tiết. |
 | PATCH | `/api/v1/admin/admin-users/{id}` | web + `auth:admin_web` | Sửa name/email. Audit `admin.admin_user.update`. |
 | POST | `/api/v1/admin/admin-users/{id}/reset-password` | web + `auth:admin_web` | `{ password ≥8 }`. 409 `CANNOT_SELF_MUTATE` nếu target = actor. Audit `admin.admin_user.reset_password`. |
-| POST | `/api/v1/admin/admin-users/{id}/suspend` | web + `auth:admin_web` | Vô hiệu hoá (is_active=false). 409 `CANNOT_SELF_MUTATE` / `LAST_ACTIVE_ADMIN`. Audit `admin.admin_user.suspend`. |
-| POST | `/api/v1/admin/admin-users/{id}/reactivate` | web + `auth:admin_web` | Kích hoạt lại. Audit `admin.admin_user.reactivate`. |
+| POST | `/api/v1/admin/admin-users/{id}/suspend` | web + `auth:admin_web` | `{ reason: string ≥10 }`. Vô hiệu hoá (is_active=false). 409 `CANNOT_SELF_MUTATE` / `LAST_ACTIVE_ADMIN`. Audit `admin.admin_user.suspend` (changes.reason). (2026-07-21) |
+| POST | `/api/v1/admin/admin-users/{id}/reactivate` | web + `auth:admin_web` | `{ reason: string ≥10 }`. Kích hoạt lại. Audit `admin.admin_user.reactivate` (changes.reason). (2026-07-21) |
 
 ### Tenant Users (admin) — Spec 2026-05-17 mở rộng
 
@@ -353,8 +353,8 @@ Super-admin xuyên tenant. Spec 2026-05-17 đã tách auth: super-admin ở bả
 | GET | `/api/v1/admin/users/{id}/ai-usage` | Phân rã lượt AI của 1 user: `{ data: { all_time, by_month:[{period_ym,count}], by_feature:[{feature,count}] } }` — nguồn bảng `ai_usage_counters` (`user_id=0` = hệ thống/auto, ví dụ auto-reply chạy nền không gắn user). Admin đọc xuyên tenant qua contract `AiUsageReporter` (module Billing). (2026-07-05) |
 | PATCH | `/api/v1/admin/users/{id}` | Sửa name/email. Audit `admin.user.update`. |
 | POST | `/api/v1/admin/users/{id}/reset-password` | `{ password ≥8 }`. Audit `admin.user.reset_password`. |
-| POST | `/api/v1/admin/users/{id}/suspend` | Set `users.suspended_at`. EnsureTenant middleware chặn 403 `USER_SUSPENDED` ở route nghiệp vụ tenant. Audit `admin.user.suspend`. |
-| POST | `/api/v1/admin/users/{id}/reactivate` | Clear `suspended_at`. Audit `admin.user.reactivate`. |
+| POST | `/api/v1/admin/users/{id}/suspend` | `{ reason: string ≥10 }`. Set `users.suspended_at`. EnsureTenant middleware chặn 403 `USER_SUSPENDED` ở route nghiệp vụ tenant. Audit `admin.user.suspend` (changes.reason). (2026-07-21) |
+| POST | `/api/v1/admin/users/{id}/reactivate` | `{ reason: string ≥10 }`. Clear `suspended_at`. Audit `admin.user.reactivate` (changes.reason). (2026-07-21) |
 
 ### System Settings (Spec 2026-05-17 — module Settings)
 

@@ -101,11 +101,12 @@ class AdminAdminUserController extends Controller
         return response()->json(['data' => ['ok' => true]]);
     }
 
-    public function suspend(int $id): JsonResponse
+    public function suspend(Request $request, int $id): JsonResponse
     {
         if ($conflict = $this->refuseSelf($id)) {
             return $conflict;
         }
+        $data = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:500']]);
         $admin = AdminUser::query()->findOrFail($id);
 
         if ($admin->is_active && AdminUser::query()->where('is_active', true)->count() <= 1) {
@@ -113,16 +114,17 @@ class AdminAdminUserController extends Controller
         }
 
         $admin->forceFill(['is_active' => false])->save();
-        AuditLog::record('admin.admin_user.suspend', $admin);
+        AuditLog::record('admin.admin_user.suspend', $admin, ['reason' => $data['reason']]);
 
         return response()->json(['data' => $this->present($admin)]);
     }
 
-    public function reactivate(int $id): JsonResponse
+    public function reactivate(Request $request, int $id): JsonResponse
     {
+        $data = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:500']]);
         $admin = AdminUser::query()->findOrFail($id);
         $admin->forceFill(['is_active' => true])->save();
-        AuditLog::record('admin.admin_user.reactivate', $admin);
+        AuditLog::record('admin.admin_user.reactivate', $admin, ['reason' => $data['reason']]);
 
         return response()->json(['data' => $this->present($admin)]);
     }

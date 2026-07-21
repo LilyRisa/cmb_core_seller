@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use CMBcoreSeller\Models\AdminUser;
+use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -95,7 +96,7 @@ class AdminUserCrudTest extends TestCase
         $this->actingAdmin();
         AdminUser::factory()->create();
         $target = AdminUser::factory()->create();
-        $this->postJson("/api/v1/admin/admin-users/{$target->id}/suspend")
+        $this->postJson("/api/v1/admin/admin-users/{$target->id}/suspend", ['reason' => 'Vi phạm điều khoản sử dụng dịch vụ.'])
             ->assertOk()->assertJsonPath('data.is_active', false);
     }
 
@@ -114,7 +115,9 @@ class AdminUserCrudTest extends TestCase
         // Deactivate $me in DB while session stays.
         $me->forceFill(['is_active' => false])->save();
         // Now only $target is active. Acting as $me (session), suspend $target → LAST_ACTIVE_ADMIN.
-        $this->postJson("/api/v1/admin/admin-users/{$target->id}/suspend")
+        // Reason validation runs before the LAST_ACTIVE_ADMIN business check, so a valid reason
+        // must be sent for this test to actually exercise that check (not just fail on 422).
+        $this->postJson("/api/v1/admin/admin-users/{$target->id}/suspend", ['reason' => 'Test lý do đủ dài.'])
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'LAST_ACTIVE_ADMIN');
     }
@@ -132,7 +135,42 @@ class AdminUserCrudTest extends TestCase
     {
         $this->actingAdmin();
         $other = AdminUser::factory()->inactive()->create();
-        $this->postJson("/api/v1/admin/admin-users/{$other->id}/reactivate")->assertOk();
+        $this->postJson("/api/v1/admin/admin-users/{$other->id}/reactivate", ['reason' => 'Khách yêu cầu mở lại tài khoản admin.'])
+            ->assertOk();
         $this->assertTrue($other->fresh()->is_active);
+    }
+
+    public function test_suspend_requires_reason(): void
+    {
+        $this->actingAdmin();
+        $target = AdminUser::factory()->create();
+        $this->postJson("/api/v1/admin/admin-users/{$target->id}/suspend", ['reason' => 'ngắn'])
+            ->assertStatus(422);
+        $this->postJson("/api/v1/admin/admin-users/{$target->id}/suspend")
+            ->assertStatus(422);
+    }
+
+    public function test_reactivate_requires_reason(): void
+    {
+        $this->actingAdmin();
+        $other = AdminUser::factory()->inactive()->create();
+        $this->postJson("/api/v1/admin/admin-users/{$other->id}/reactivate")
+            ->assertStatus(422);
+    }
+
+    public function test_suspend_writes_reason_to_audit_log(): void
+    {
+        $this->actingAdmin();
+        $target = AdminUser::factory()->create();
+        $this->postJson("/api/v1/admin/admin-users/{$target->id}/suspend", ['reason' => 'Vi phạm điều khoản sử dụng dịch vụ.'])
+            ->assertOk();
+
+        $log = AuditLog::query()
+            ->where('action', 'admin.admin_user.suspend')
+            ->where('auditable_id', $target->id)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($log);
+        $this->assertSame('Vi phạm điều khoản sử dụng dịch vụ.', $log->changes['reason'] ?? null);
     }
 }
