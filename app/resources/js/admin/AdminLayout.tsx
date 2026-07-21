@@ -101,18 +101,25 @@ const MENU_ITEMS: MenuProps['items'] = SIDEBAR.map((e) =>
 const ALL_LEAF_KEYS: string[] = SIDEBAR.flatMap((e) => (isGroup(e) ? e.items.map((i) => i.key) : [e.key]));
 
 function findBreadcrumb(pathname: string): { groupLabel?: string; label: string } | null {
+    // Longest-prefix-match (giống hệt `selected` bên dưới) — KHÔNG được match theo thứ tự khai
+    // báo đầu tiên: entry đứng đầu `/admin` là tiền tố của MỌI route con khác, nên first-match-wins
+    // sẽ luôn trả "Tổng quan" cho mọi trang.
+    type Candidate = { key: string; groupLabel?: string; label: string };
+    const candidates: Candidate[] = [];
     for (const e of SIDEBAR) {
         if (isGroup(e)) {
             for (const i of e.items) {
-                if (pathname === i.key || pathname.startsWith(i.key + '/')) {
-                    return { groupLabel: e.groupLabel, label: i.label };
-                }
+                candidates.push({ key: i.key, groupLabel: e.groupLabel, label: i.label });
             }
-        } else if (pathname === e.key || pathname.startsWith(e.key + '/')) {
-            return { label: e.label };
+        } else {
+            candidates.push({ key: e.key, label: e.label });
         }
     }
-    return null;
+    const matches = candidates
+        .filter((c) => pathname === c.key || pathname.startsWith(c.key + '/'))
+        .sort((a, b) => b.key.length - a.key.length);
+
+    return matches[0] ?? null;
 }
 
 export function AdminLayout() {
