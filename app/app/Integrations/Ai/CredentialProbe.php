@@ -55,6 +55,7 @@ class CredentialProbe
 
         try {
             $response = Http::withToken($apiKey)
+                ->withoutRedirecting()
                 ->connectTimeout((int) config('ai.http.connect_timeout', 10))
                 ->timeout(20)
                 ->post($base.'/v1/embeddings', ['model' => $model, 'input' => 'ping']);
@@ -90,6 +91,7 @@ class CredentialProbe
                 'anthropic-version' => '2023-06-01',
                 'content-type' => 'application/json',
             ])
+                ->withoutRedirecting()
                 ->connectTimeout((int) config('ai.http.connect_timeout', 10))
                 ->timeout(20)
                 ->post($base.'/v1/messages', [
@@ -120,6 +122,7 @@ class CredentialProbe
 
         try {
             $response = Http::withToken($apiKey)
+                ->withoutRedirecting()
                 ->connectTimeout((int) config('ai.http.connect_timeout', 10))
                 ->timeout(20)
                 ->post($base.'/v1/chat/completions', [

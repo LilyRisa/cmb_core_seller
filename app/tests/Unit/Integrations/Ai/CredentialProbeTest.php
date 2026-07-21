@@ -81,4 +81,28 @@ class CredentialProbeTest extends TestCase
         $this->assertFalse($result['ok']);
         Http::assertNothingSent();
     }
+
+    /**
+     * Whole-branch review Phase 2b (Critical): base_url đã qua SafeProviderUrl (chỉ chặn URL
+     * BAN ĐẦU) nhưng nếu client tự follow redirect, provider "public" hợp lệ có thể 302 sang
+     * host nội bộ (vd cloud metadata 169.254.169.254) ⇒ vô hiệu hoá guard SSRF. Xác nhận
+     * withoutRedirecting() chặn đứng: request KHÔNG BAO GIỜ chạm target redirect, và response
+     * 3xx bị coi là thất bại (không phải tình cờ "ok" nhờ theo redirect).
+     */
+    public function test_probe_chat_does_not_follow_redirect_to_internal_host(): void
+    {
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response(
+                '',
+                302,
+                ['Location' => 'http://169.254.169.254/latest/meta-data/'],
+            ),
+            'http://169.254.169.254/*' => Http::response('SHOULD NEVER BE REACHED', 200),
+        ]);
+
+        $result = (new CredentialProbe)->probeChat('openai_compatible', null, 'sk-test', 'gpt-4o-mini');
+
+        $this->assertFalse($result['ok']);
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '169.254.169.254'));
+    }
 }
