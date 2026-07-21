@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { AutoComplete, Input, Tag } from 'antd';
 import { EnvironmentOutlined } from '@ant-design/icons';
 import { useDistricts, useProvinces, useWards, type AddressFormat, type District, type Province, type Ward } from '@/lib/masterData';
-import { segmentScore, uniqueMatch } from '@/lib/vnAddressMatch';
+import { segmentScore, uniqueMatch, vnPlain } from '@/lib/vnAddressMatch';
 import type { PickedAddress } from '@/components/AddressPicker';
 
 /**
@@ -132,10 +132,19 @@ interface TailParse {
 /** Match đã tìm được kèm vị trí segment gốc (để loại khỏi phần detail sau này). */
 interface SegMatch<T> { item: T; segIndex: number; query: string; score: number }
 
-/** Tách input theo dấu phẩy / chấm phẩy, trim, bỏ rỗng. Safe với undefined. */
+/**
+ * Tách input theo dấu phẩy / chấm phẩy VÀ dấu chấm dùng làm phân cấp hành chính (vd
+ * "xa.huyen.tinh" hoặc "quang thanh.kinh mon.hai duong") — nhưng KHÔNG tách dấu chấm của viết tắt
+ * dính liền "Q.1" / "P.5" / "TP.HCM" / "H.2" / "X.3" / "TT.4" / "TX.5" (tiền tố ngắn ngay trước dấu
+ * chấm, có ranh giới từ phía trước) để không phá cách khớp viết tắt đã có. Trim, bỏ rỗng. Safe với
+ * undefined.
+ */
 function splitSegments(text: string | undefined | null): string[] {
     if (!text) return [];
-    return String(text).split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+    return String(text)
+        .split(/[,;]+|(?<!\b(?:tp|tt|tx|q|h|x|p))\.+/gi)
+        .map((s) => s.trim())
+        .filter(Boolean);
 }
 
 /**
@@ -241,6 +250,11 @@ function buildSuggestions(tp: TailParse, matchedDistrict: SegMatch<District> | n
     return [];
 }
 
+/** Tiền tố cấp hành chính — nếu đứng NGAY TRƯỚC cụm vừa khớp (huyện/xã) thì xoá gộp luôn, tránh sót
+ *  từ mồ côi (vd "...huyện" còn sót lại sau khi chỉ xoá "Chợ Gạo", hay "xã" sau khi chỉ xoá "Lương
+ *  Hoà Lạc") lẫn vào phần địa chỉ chi tiết. Cùng danh sách gốc tiền tố với {@see stripAdminPrefix}. */
+const ADMIN_MARKER_WORDS = new Set(['tinh', 'tp', 'quan', 'q', 'huyen', 'h', 'xa', 'x', 'phuong', 'p', 'tx', 'tt']);
+
 /** Bỏ cụm từ ĐÃ khớp (huyện/xã) khỏi đúng đoạn chứa nó — phần dư còn lại làm địa chỉ chi tiết. */
 function stripWindow(segs: string[], idx: number, query: string): string[] {
     return segs.map((s, i) => {
@@ -252,7 +266,16 @@ function stripWindow(segs: string[], idx: number, query: string): string[] {
             for (let k = 0; k < qw.length; k++) {
                 if (sw[start + k].toLowerCase() !== qw[k].toLowerCase()) { ok = false; break; }
             }
-            if (ok) { sw.splice(start, qw.length); return sw.join(' '); }
+            if (ok) {
+                let removeStart = start;
+                let removeCount = qw.length;
+                if (removeStart > 0 && ADMIN_MARKER_WORDS.has(vnPlain(sw[removeStart - 1]))) {
+                    removeStart -= 1;
+                    removeCount += 1;
+                }
+                sw.splice(removeStart, removeCount);
+                return sw.join(' ');
+            }
         }
         return s;
     });

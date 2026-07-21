@@ -6,6 +6,8 @@
  *  - "ha noi" (không dấu) khớp "Hà Nội"
  *  - "Hồ Chí Minh" / "HCM" / "TP.HCM" / "Saigon" đều khớp "Thành phố Hồ Chí Minh" (alias + strip prefix)
  *  - "Q.1" / "Q1" / "Quận 1" đều khớp "Quận 1"
+ *  - "haiduong" (dính liền không dấu cách) khớp "Hải Dương" — phục vụ định dạng phân cấp bằng dấu
+ *    chấm không dấu cách kiểu "quangthanh.kinhmon.haiduong" (xem splitSegments trong AddressAutocomplete.tsx)
  *  - Sort: exact match > startsWith > contains
  */
 
@@ -57,6 +59,7 @@ const CITY_ALIASES: Record<string, string> = {
     'brvt': 'ba ria vung tau',
     'vt': 'ba ria vung tau',
     'vungtau': 'ba ria vung tau',
+    'hd': 'hai duong',
 };
 
 function applyCityAlias(key: string): string {
@@ -79,6 +82,10 @@ export function matchScore(query: string, itemName: string): number {
     if (n === q) return 1000;
     // Exact với prefix giữ nguyên — vd "quan 1" === "quan 1" (n đã strip còn "1", np còn "quan 1")
     if (np === q) return 950;
+    // Khớp bỏ khoảng trắng — cho phép gõ dính liền không dấu cách (vd "haiduong" khớp "hai duong"),
+    // dùng cho định dạng phân cấp bằng dấu chấm không dấu cách ("quangthanh.kinhmon.haiduong").
+    if (n.replace(/\s+/g, '') === q.replace(/\s+/g, '')) return 900;
+    if (np.replace(/\s+/g, '') === q.replace(/\s+/g, '')) return 880;
     // Bắt đầu bằng query
     if (n.startsWith(q)) return 800;
     if (np.startsWith(q)) return 780;
@@ -121,6 +128,8 @@ export function segmentScore(segment: string, itemName: string): number {
     if (seg === '' || item === '') return -1;
     if (seg === item) return 1000;
     if (item.replace(/\s+/g, '').length < 4) return -1;
+    // Khớp bỏ khoảng trắng — cho "quangthanh" (dính liền) khớp "Quang Thành" (có cách).
+    if (seg.replace(/\s+/g, '') === item.replace(/\s+/g, '')) return 950;
     if (includesAllWords(seg, item)) return 800;
     if (seg.replace(/\s+/g, '').length >= 4 && (item.startsWith(seg) || seg.startsWith(item))) return 650;
 
