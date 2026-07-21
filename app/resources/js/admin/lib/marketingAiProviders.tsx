@@ -14,6 +14,8 @@ export interface MarketingAiProviderRow {
     default_model: string | null;
     is_active: boolean;
     has_key: boolean;
+    /** Plaintext key (đã giải mã) — trang admin hiển thị thẳng qua SecretInput. */
+    api_key: string | null;
 }
 
 export interface MarketingAiProviderInput {
@@ -49,5 +51,26 @@ export function useDeleteMarketingAiProvider() {
     return useMutation({
         mutationFn: async (code: string) => { await api.delete(`/admin/marketing-ai-providers/${code}`); },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'marketing-ai-providers'] }),
+    });
+}
+
+export interface MarketingAiProviderDraftTestResult {
+    ok: boolean;
+    message?: string;
+}
+
+export interface MarketingAiProviderDraftTestPayload {
+    adapter: MarketingAiAdapter;
+    base_url: string | null;
+    api_key: string | null;
+    default_model: string | null;
+}
+
+/** Test kết nối bằng credentials ĐANG NHẬP trên form (chưa lưu) — chỉ hỗ trợ adapter
+ * anthropic/openai_compatible (manual không gate, xem AdminMarketingAiProvidersPage). */
+export function useTestMarketingAiProviderDraft() {
+    return useMutation({
+        mutationFn: async (payload: MarketingAiProviderDraftTestPayload) =>
+            (await api.post<{ data: MarketingAiProviderDraftTestResult }>('/admin/marketing-ai-providers/test-draft', payload)).data.data,
     });
 }
