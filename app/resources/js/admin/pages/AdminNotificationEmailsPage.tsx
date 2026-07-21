@@ -1,6 +1,10 @@
 // SPEC 2026-07-15 — quản lý email nhận thông báo admin (CSKH mới, user xác minh email...).
+// Form tạo/sửa dùng Drawer (redesign 2026-07-21 §5.2 — bỏ Card nội tuyến làm form). Xoá dùng
+// Popconfirm — tier Standard theo §5.1 (trước đây modal.confirm không lý do, cùng tier, gộp
+// thống nhất về Popconfirm). Nút "Gửi email test" GIỮ NGUYÊN trên từng dòng bảng — thao tác trên
+// bản ghi đã lưu, độc lập với form tạo/sửa, không chuyển vào Drawer (xem lý do trong plan).
 import { useState } from 'react';
-import { App, Button, Card, Checkbox, Form, Input, Space, Switch, Table, Tag } from 'antd';
+import { App, Button, Card, Checkbox, Drawer, Form, Input, Popconfirm, Space, Switch, Table, Tag } from 'antd';
 import { DeleteOutlined, EditOutlined, MailOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -27,23 +31,29 @@ export function AdminNotificationEmailsPage() {
     const update = useUpdateAdminNotificationEmail();
     const remove = useDeleteAdminNotificationEmail();
     const test = useTestAdminNotificationEmail();
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
     const [form] = Form.useForm<FormShape>();
+    const [open, setOpen] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
 
-    const reset = () => { form.resetFields(); setEditingId(null); };
+    const openCreate = () => {
+        form.resetFields();
+        setEditingId(null);
+        setOpen(true);
+    };
 
-    const startEdit = (r: AdminNotificationEmail) => {
+    const openEdit = (r: AdminNotificationEmail) => {
         setEditingId(r.id);
         form.setFieldsValue({
             email: r.email, label: r.label ?? undefined, is_active: r.is_active,
             notification_types: r.notification_types,
         });
+        setOpen(true);
     };
 
     const submit = (v: FormShape) => {
         const input = { email: v.email, label: v.label ?? null, is_active: v.is_active, notification_types: v.notification_types };
-        const opts = { onSuccess: () => { message.success('Đã lưu.'); reset(); }, onError: () => message.error('Lưu thất bại.') };
+        const opts = { onSuccess: () => { message.success('Đã lưu.'); setOpen(false); }, onError: () => message.error('Lưu thất bại.') };
         if (editingId) update.mutate({ id: editingId, ...input }, opts);
         else create.mutate(input, opts);
     };
@@ -71,14 +81,13 @@ export function AdminNotificationEmailsPage() {
                             onError: () => message.error('Gửi test thất bại.'),
                         })}
                     />
-                    <Button size="small" icon={<EditOutlined />} onClick={() => startEdit(r)} />
-                    <Button
-                        size="small" danger icon={<DeleteOutlined />}
-                        onClick={() => modal.confirm({
-                            title: `Xoá email "${r.email}"?`,
-                            onOk: () => remove.mutateAsync(r.id).then(() => message.success('Đã xoá.')),
-                        })}
-                    />
+                    <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
+                    <Popconfirm
+                        title={`Xoá email "${r.email}"?`}
+                        onConfirm={() => remove.mutate(r.id, { onSuccess: () => message.success('Đã xoá.') })}
+                    >
+                        <Button size="small" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
                 </Space>
             ),
         },
@@ -86,7 +95,20 @@ export function AdminNotificationEmailsPage() {
 
     return (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <Card title={editingId ? 'Sửa email nhận thông báo' : 'Thêm email nhận thông báo'} size="small" style={{ maxWidth: 560 }}>
+            <Card
+                title="Danh sách email nhận thông báo" size="small"
+                extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Thêm email</Button>}
+            >
+                <Table rowKey="id" size="small" loading={isLoading} columns={columns} dataSource={rows} pagination={false} />
+            </Card>
+
+            <Drawer
+                open={open}
+                title={editingId ? 'Sửa email nhận thông báo' : 'Thêm email nhận thông báo'}
+                width={480}
+                onClose={() => setOpen(false)}
+                destroyOnHidden
+            >
                 <Form form={form} layout="vertical" initialValues={{ is_active: true, notification_types: [] }} onFinish={submit}>
                     <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', max: 255 }]}>
                         <Input placeholder="admin@cmbcoreseller.com" />
@@ -107,14 +129,10 @@ export function AdminNotificationEmailsPage() {
                         <Button type="primary" htmlType="submit" icon={<PlusOutlined />} loading={create.isPending || update.isPending}>
                             {editingId ? 'Cập nhật' : 'Thêm'}
                         </Button>
-                        {editingId && <Button onClick={reset}>Huỷ</Button>}
+                        <Button onClick={() => setOpen(false)}>Huỷ</Button>
                     </Space>
                 </Form>
-            </Card>
-
-            <Card title="Danh sách email nhận thông báo" size="small">
-                <Table rowKey="id" size="small" loading={isLoading} columns={columns} dataSource={rows} pagination={false} />
-            </Card>
+            </Drawer>
         </Space>
     );
 }
