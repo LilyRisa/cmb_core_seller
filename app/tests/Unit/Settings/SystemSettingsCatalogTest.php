@@ -14,27 +14,22 @@ class SystemSettingsCatalogTest extends TestCase
         $this->assertNotEmpty($all);
         $groups = collect($all)->pluck('group')->unique()->values()->all();
         sort($groups);
-        $this->assertSame(['ai', 'branding', 'fulfillment', 'mail', 'marketplace', 'push', 'sync'], $groups);
+        $this->assertSame(['ai', 'branding', 'fulfillment', 'growth', 'mail', 'marketplace', 'push', 'sync'], $groups);
     }
 
-    public function test_count_is_67(): void
+    public function test_count_is_71(): void
     {
-        // branding 5 + mail 8 + marketplace 14 + fulfillment 17 + sync 11 + push 3 + ai 9.
-        // sync 11 = throttle×3 + sync.poll/backfill×3 + billing.over_quota_grace_hours
-        //        + billing.pro_trial.{enabled,duration_days,window_start,window_end}.
-        // ai 9 = messaging system_prompt + help_assistant chat(base_url/api_key/model)
-        //        + help_assistant embedding(base_url/api_key/model)
-        //        + visual_search.rerank.provider_code (visual re-rank provider)
-        //        + messaging.transcription.provider_code (STT provider).
-        $this->assertCount(67, SystemSettingsCatalog::all());
+        // branding 5 + mail 8 + marketplace 14 + fulfillment 17 + sync 11 + push 3 + ai 9 + growth 4.
+        // growth 4 = facebook.{enabled,pixel_id,capi_access_token,test_event_code} (SPEC 2026-07-22).
+        $this->assertCount(71, SystemSettingsCatalog::all());
     }
 
-    public function test_secret_count_is_13(): void
+    public function test_secret_count_is_14(): void
     {
         // mail.password + tiktok×2 + lazada×2 + shopee×3 + r2×2 + push.vapid_private_key
-        // + help_assistant chat_api_key + help_assistant embedding_api_key.
+        // + help_assistant chat_api_key + help_assistant embedding_api_key + growth.facebook.capi_access_token.
         $secrets = collect(SystemSettingsCatalog::all())->where('is_secret', true)->keys()->all();
-        $this->assertCount(13, $secrets);
+        $this->assertCount(14, $secrets);
     }
 
     public function test_require_throws_on_unknown(): void

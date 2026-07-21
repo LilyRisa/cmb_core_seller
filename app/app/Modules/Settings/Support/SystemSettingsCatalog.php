@@ -11,7 +11,7 @@ use InvalidArgumentException;
  * qua khi đọc (luôn trả default).
  *
  * Cấu trúc một entry:
- *   - group: 'branding' | 'mail' | 'marketplace' | 'fulfillment' | 'sync' | 'push'
+ *   - group: 'ai' | 'branding' | 'fulfillment' | 'growth' | 'mail' | 'marketplace' | 'push' | 'sync'
  *   - type:  'string' | 'int' | 'bool' | 'float' | 'json'
  *   - is_secret: bool — true ⇒ encrypt khi store. ([TIKTOK-REVIEW-TEMP] Admin index hiển thị clear, không che —
  *     theo yêu cầu chủ dự án; reveal endpoint vẫn còn để truy vết audit khi cần.)
@@ -19,7 +19,7 @@ use InvalidArgumentException;
  *   - label: tiêu đề hiển thị UI
  *   - description?: hint hiển thị dưới label
  *
- * Nhóm: branding, mail (email/SMTP), marketplace, fulfillment, sync, push.
+ * Nhóm: ai, branding, fulfillment, growth, mail (email/SMTP), marketplace, push, sync.
  * Email (mail.*) được SettingsServiceProvider::boot() override vào config('mail.*') lúc boot (fallback env).
  *
  * Key core KHÔNG cho vào catalog (giữ env tuyệt đối): APP_KEY, APP_ENV, DB_*,
@@ -355,6 +355,29 @@ class SystemSettingsCatalog
                 'group' => 'ai', 'type' => 'string', 'is_secret' => false,
                 'env' => 'MESSAGING_TRANSCRIPTION_PROVIDER_CODE', 'label' => 'AI chuyển giọng nói — Provider',
                 'description' => 'Code provider AI (OpenAI-compatible, vd Groq whisper) để transcribe ghi âm khách. Rỗng ⇒ tắt.',
+            ],
+
+            // ── Tăng trưởng — Facebook Pixel + Conversions API (SPEC 2026-07-22) ──
+            // Nhúng Pixel ở app.blade.php (mọi trang) + báo CompleteRegistration lúc đăng ký
+            // (Tenancy\Listeners\ReportSignupToMetaCapi). KHÔNG dùng .env ở prod — admin nhập
+            // tay qua /admin/settings (tab "Tăng trưởng").
+            'growth.facebook.enabled' => [
+                'group' => 'growth', 'type' => 'bool', 'is_secret' => false,
+                'env' => 'FACEBOOK_PIXEL_ENABLED', 'label' => 'Facebook Pixel — Bật',
+                'description' => 'Bật để nhúng Pixel vào mọi trang + gửi sự kiện CompleteRegistration qua Conversions API.',
+            ],
+            'growth.facebook.pixel_id' => [
+                'group' => 'growth', 'type' => 'string', 'is_secret' => false,
+                'env' => 'FACEBOOK_PIXEL_ID', 'label' => 'Facebook Pixel ID',
+            ],
+            'growth.facebook.capi_access_token' => [
+                'group' => 'growth', 'type' => 'string', 'is_secret' => true,
+                'env' => 'FACEBOOK_CAPI_ACCESS_TOKEN', 'label' => 'Conversions API — Access Token',
+            ],
+            'growth.facebook.test_event_code' => [
+                'group' => 'growth', 'type' => 'string', 'is_secret' => false,
+                'env' => 'FACEBOOK_CAPI_TEST_EVENT_CODE', 'label' => 'Conversions API — Test Event Code',
+                'description' => 'Điền tạm khi soi ở tab "Test Events" trên Meta Events Manager, xoá khi chạy thật.',
             ],
         ];
     }
