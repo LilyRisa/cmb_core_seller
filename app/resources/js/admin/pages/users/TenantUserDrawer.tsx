@@ -1,9 +1,14 @@
-// Spec 2026-05-17 — drawer chi tiết tenant user. Sửa name/email, reset password,
-// suspend/reactivate. Hiển thị danh sách tenant đang là thành viên.
+// Spec 2026-05-17 (redesign 2026-07-21) — drawer chi tiết tenant user. Sửa name/email, đặt lại
+// mật khẩu, tạm khoá/mở lại. Hiển thị danh sách tenant đang là thành viên.
+// Tạm khoá/Mở lại dùng useReasonConfirm — tier "high-impact" theo
+// docs/superpowers/specs/2026-07-21-admin-panel-ux-redesign-design.md §5.1.
+// Loading: Spin trong lúc useTenantUserDetail() chưa trả dữ liệu — trước đây thiếu (spec §5.5),
+// drawer mở ra thấy form trống trong vài trăm ms rồi mới nạp dữ liệu.
 
 import { useEffect, useState } from 'react';
-import { Drawer, Form, Input, Button, Space, App, Popconfirm, Tag, Typography, Descriptions } from 'antd';
+import { Drawer, Form, Input, Button, Space, App, Popconfirm, Spin, Tag, Typography, Descriptions } from 'antd';
 import { errorMessage } from '@/lib/api';
+import { useReasonConfirm } from '@admin/components/ReasonConfirmModal';
 import {
     useTenantUserDetail,
     useUpdateTenantUser,
@@ -22,13 +27,14 @@ export function TenantUserDrawer({
 }) {
     const [form] = Form.useForm();
     const [newPassword, setNewPassword] = useState('');
-    const { data } = useTenantUserDetail(userId);
+    const { data, isLoading } = useTenantUserDetail(userId);
     const aiUsage = useTenantUserAiUsage(userId);
     const update = useUpdateTenantUser();
     const reset = useResetTenantUserPassword();
     const suspend = useSuspendTenantUser();
     const reactivate = useReactivateTenantUser();
     const { message } = App.useApp();
+    const confirmWithReason = useReasonConfirm();
 
     useEffect(() => {
         if (data) {
@@ -37,13 +43,48 @@ export function TenantUserDrawer({
     }, [data, form]);
 
     if (userId === null) return null;
-    const suspended = !!data?.suspended_at;
+
+    if (isLoading || !data) {
+        return (
+            <Drawer open width={460} title="Người dùng" onClose={onClose} destroyOnHidden>
+                <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>
+            </Drawer>
+        );
+    }
+
+    const suspended = !!data.suspended_at;
+
+    const onSuspend = () => {
+        confirmWithReason({
+            title: 'Tạm khoá người dùng này?',
+            danger: true,
+            okText: 'Tạm khoá',
+            warningText: 'Người dùng sẽ không thể đăng nhập vào bất kỳ tenant nào cho tới khi được mở lại.',
+            onConfirm: async (reason) => {
+                await suspend.mutateAsync({ id: userId, reason });
+                message.success('Đã khoá.');
+                onClose();
+            },
+        });
+    };
+
+    const onReactivate = () => {
+        confirmWithReason({
+            title: 'Mở lại người dùng này?',
+            okText: 'Mở lại',
+            onConfirm: async (reason) => {
+                await reactivate.mutateAsync({ id: userId, reason });
+                message.success('Đã kích hoạt lại.');
+                onClose();
+            },
+        });
+    };
 
     return (
         <Drawer
             open
             width={460}
-            title={`Người dùng: ${data?.name ?? '…'}`}
+            title={`Người dùng: ${data.name}`}
             onClose={onClose}
             destroyOnHidden
         >
@@ -72,7 +113,7 @@ export function TenantUserDrawer({
 
                 <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
                     Tenant:{' '}
-                    {data?.tenants?.length
+                    {data.tenants.length
                         ? data.tenants.map((t) => (
                               <Tag key={t.id}>
                                   {t.name} · {t.role}
@@ -130,38 +171,17 @@ export function TenantUserDrawer({
                             );
                         }}
                     >
-                        <Button>Reset password</Button>
+                        <Button>Đặt lại mật khẩu</Button>
                     </Popconfirm>
 
                     {suspended ? (
-                        <Button
-                            onClick={() =>
-                                reactivate.mutate(userId, {
-                                    onSuccess: () => {
-                                        message.success('Đã kích hoạt lại.');
-                                        onClose();
-                                    },
-                                    onError: (e) => message.error(errorMessage(e)),
-                                })
-                            }
-                        >
-                            Reactivate
+                        <Button onClick={onReactivate} loading={reactivate.isPending}>
+                            Mở lại
                         </Button>
                     ) : (
-                        <Popconfirm
-                            title="Tạm khoá người dùng này?"
-                            onConfirm={() =>
-                                suspend.mutate(userId, {
-                                    onSuccess: () => {
-                                        message.success('Đã khoá.');
-                                        onClose();
-                                    },
-                                    onError: (e) => message.error(errorMessage(e)),
-                                })
-                            }
-                        >
-                            <Button danger>Suspend</Button>
-                        </Popconfirm>
+                        <Button danger onClick={onSuspend} loading={suspend.isPending}>
+                            Tạm khoá
+                        </Button>
                     )}
                 </Space>
             </Form>
