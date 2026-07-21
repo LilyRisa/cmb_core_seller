@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Tenancy\Listeners;
 
+use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Events\TenantCreated;
 use CMBcoreSeller\Modules\Tenancy\Services\FacebookCapiReporter;
@@ -26,6 +27,7 @@ class ReportSignupToMetaCapi implements ShouldQueue
     public function handle(TenantCreated $event): void
     {
         $tenant = $event->tenant;
+        /** @var User|null $owner */
         $owner = $tenant->users()->wherePivot('role', Role::Owner->value)->first();
         if ($owner === null || ! $owner->email) {
             return;
