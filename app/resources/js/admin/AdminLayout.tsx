@@ -1,8 +1,11 @@
-// Spec 2026-05-17 — sidebar + header admin. Tách hoàn toàn khỏi `AppLayout`
-// của user. Theme navy/đỏ (xem `admin.tsx` ConfigProvider). Icons từ
-// `@ant-design/icons` (memory `ui-use-font-icons-not-emoji`).
+// Spec 2026-05-17 (redesign 2026-07-21) — sidebar + header admin. Tách hoàn toàn khỏi
+// `AppLayout` của user. Theme navy/đỏ (xem `admin.tsx` ConfigProvider). Icons từ
+// `@ant-design/icons` (memory `ui-use-font-icons-not-emoji`). Sidebar gom nhóm theo
+// docs/superpowers/specs/2026-07-21-admin-panel-ux-redesign-design.md §4.
 
+import type { ReactNode } from 'react';
 import { Layout, Menu, Typography, Space, Button } from 'antd';
+import type { MenuProps } from 'antd';
 import {
     DashboardOutlined,
     ShopOutlined,
@@ -22,30 +25,95 @@ import {
     PictureOutlined,
     AudioOutlined,
     MailOutlined,
+    RiseOutlined,
+    EyeOutlined,
 } from '@ant-design/icons';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminLogout, useAdminMe } from './lib/adminAuth';
 
-const SIDEBAR_ITEMS = [
+interface SidebarLeaf { key: string; icon: ReactNode; label: string }
+interface SidebarGroup { groupLabel: string; items: SidebarLeaf[] }
+type SidebarEntry = SidebarLeaf | SidebarGroup;
+
+function isGroup(e: SidebarEntry): e is SidebarGroup {
+    return 'groupLabel' in e;
+}
+
+// Cấu trúc nguồn của sidebar — Menu items (AntD) và breadcrumb header đều dẫn xuất từ đây,
+// tránh 2 nguồn sự thật lệch nhau. Thêm mục mới: thêm leaf vào group phù hợp (hoặc group mới).
+const SIDEBAR: SidebarEntry[] = [
     { key: '/admin', icon: <DashboardOutlined />, label: 'Tổng quan' },
-    { key: '/admin/tenants', icon: <ShopOutlined />, label: 'Tenants' },
-    { key: '/admin/users', icon: <UserOutlined />, label: 'Người dùng' },
-    { key: '/admin/vouchers', icon: <GiftOutlined />, label: 'Voucher' },
-    { key: '/admin/plans', icon: <ProfileOutlined />, label: 'Gói thuê bao' },
-    { key: '/admin/broadcasts', icon: <NotificationOutlined />, label: 'Broadcast' },
-    { key: '/admin/announcements', icon: <SoundOutlined />, label: 'Popup thông báo' },
-    { key: '/admin/desktop-backgrounds', icon: <PictureOutlined />, label: 'Hình nền Desktop' },
-    { key: '/admin/settings', icon: <SettingOutlined />, label: 'Hệ thống' },
-    { key: '/admin/notification-emails', icon: <MailOutlined />, label: 'Email thông báo' },
-    { key: '/admin/ai-providers', icon: <ApiOutlined />, label: 'Nhà cung cấp AI' },
-    { key: '/admin/marketing-ai-providers', icon: <ApiOutlined />, label: 'AI Marketing' },
-    { key: '/admin/ai-support', icon: <CustomerServiceOutlined />, label: 'AI Trợ giúp' },
-    { key: '/admin/ai-visual-rerank', icon: <PictureOutlined />, label: 'AI chấm ảnh' },
-    { key: '/admin/ai-transcription', icon: <AudioOutlined />, label: 'AI chuyển giọng nói' },
-    { key: '/admin/support-requests', icon: <SolutionOutlined />, label: 'Yêu cầu CSKH' },
-    { key: '/admin/audit-logs', icon: <AuditOutlined />, label: 'Nhật ký' },
-    { key: '/admin/invoices', icon: <TransactionOutlined />, label: 'Lịch sử thanh toán' },
+    {
+        groupLabel: 'KHÁCH HÀNG',
+        items: [
+            { key: '/admin/tenants', icon: <ShopOutlined />, label: 'Tenants' },
+            { key: '/admin/users', icon: <UserOutlined />, label: 'Người dùng' },
+            { key: '/admin/vouchers', icon: <GiftOutlined />, label: 'Voucher' },
+            { key: '/admin/plans', icon: <ProfileOutlined />, label: 'Gói thuê bao' },
+            { key: '/admin/invoices', icon: <TransactionOutlined />, label: 'Lịch sử thanh toán' },
+        ],
+    },
+    {
+        groupLabel: 'TRUYỀN THÔNG',
+        items: [
+            { key: '/admin/broadcasts', icon: <NotificationOutlined />, label: 'Broadcast' },
+            { key: '/admin/announcements', icon: <SoundOutlined />, label: 'Popup thông báo' },
+            { key: '/admin/desktop-backgrounds', icon: <PictureOutlined />, label: 'Hình nền Desktop' },
+        ],
+    },
+    {
+        groupLabel: 'CẤU HÌNH AI',
+        items: [
+            { key: '/admin/ai-providers', icon: <ApiOutlined />, label: 'Nhà cung cấp AI' },
+            { key: '/admin/marketing-ai-providers', icon: <RiseOutlined />, label: 'AI Marketing' },
+            { key: '/admin/ai-support', icon: <CustomerServiceOutlined />, label: 'AI Trợ giúp' },
+            { key: '/admin/ai-visual-rerank', icon: <EyeOutlined />, label: 'AI chấm ảnh' },
+            { key: '/admin/ai-transcription', icon: <AudioOutlined />, label: 'AI chuyển giọng nói' },
+        ],
+    },
+    {
+        groupLabel: 'HỆ THỐNG',
+        items: [
+            { key: '/admin/settings', icon: <SettingOutlined />, label: 'Cài đặt hệ thống' },
+            { key: '/admin/notification-emails', icon: <MailOutlined />, label: 'Email thông báo' },
+        ],
+    },
+    {
+        groupLabel: 'HỖ TRỢ & GIÁM SÁT',
+        items: [
+            { key: '/admin/support-requests', icon: <SolutionOutlined />, label: 'Yêu cầu CSKH' },
+            { key: '/admin/audit-logs', icon: <AuditOutlined />, label: 'Nhật ký' },
+        ],
+    },
 ];
+
+const MENU_ITEMS: MenuProps['items'] = SIDEBAR.map((e) =>
+    isGroup(e)
+        ? {
+            key: `group:${e.groupLabel}`,
+            type: 'group' as const,
+            label: e.groupLabel,
+            children: e.items.map((i) => ({ key: i.key, icon: i.icon, label: i.label })),
+        }
+        : { key: e.key, icon: e.icon, label: e.label },
+);
+
+const ALL_LEAF_KEYS: string[] = SIDEBAR.flatMap((e) => (isGroup(e) ? e.items.map((i) => i.key) : [e.key]));
+
+function findBreadcrumb(pathname: string): { groupLabel?: string; label: string } | null {
+    for (const e of SIDEBAR) {
+        if (isGroup(e)) {
+            for (const i of e.items) {
+                if (pathname === i.key || pathname.startsWith(i.key + '/')) {
+                    return { groupLabel: e.groupLabel, label: i.label };
+                }
+            }
+        } else if (pathname === e.key || pathname.startsWith(e.key + '/')) {
+            return { label: e.label };
+        }
+    }
+    return null;
+}
 
 export function AdminLayout() {
     const navigate = useNavigate();
@@ -54,11 +122,12 @@ export function AdminLayout() {
     const logout = useAdminLogout();
 
     // Chọn item match nhất theo prefix: vd /admin/tenants/123 → /admin/tenants.
-    const selected = SIDEBAR_ITEMS
-        .map((i) => i.key)
+    const selected = ALL_LEAF_KEYS
         .filter((k) => loc.pathname === k || loc.pathname.startsWith(k + '/'))
         .sort((a, b) => b.length - a.length)
         .slice(0, 1);
+
+    const crumb = findBreadcrumb(loc.pathname);
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
@@ -74,7 +143,7 @@ export function AdminLayout() {
                     mode="inline"
                     selectedKeys={selected}
                     style={{ background: '#0F172A', borderRight: 0 }}
-                    items={SIDEBAR_ITEMS}
+                    items={MENU_ITEMS}
                     onClick={(e) => navigate(e.key)}
                 />
             </Layout.Sider>
@@ -82,11 +151,14 @@ export function AdminLayout() {
                 <Layout.Header style={{
                     background: '#fff',
                     display: 'flex',
-                    justifyContent: 'flex-end',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '0 24px',
                     borderBottom: '1px solid #E5E7EB',
                 }}>
+                    <Typography.Text strong style={{ fontSize: 15 }}>
+                        {crumb ? (crumb.groupLabel ? `${crumb.groupLabel} / ${crumb.label}` : crumb.label) : ''}
+                    </Typography.Text>
                     <Space>
                         <Typography.Text type="secondary">
                             {me?.name} <Typography.Text code>{me?.username}</Typography.Text>
