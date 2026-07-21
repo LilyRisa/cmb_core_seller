@@ -49,7 +49,11 @@ class AdminDashboardOverviewTest extends TestCase
             'billing_cycle' => Subscription::CYCLE_YEARLY,
             'current_period_start' => now(), 'current_period_end' => now()->addYear(),
         ]);
-        // t3: trialing Starter, trial ends in 3 days ⇒ trial_ending_soon.
+        // t3: trialing Starter, trial ends in 3 days ⇒ trial_ending_soon. Per spec 2026-07-21
+        // §6.2, MRR sums over Subscription::ALIVE_STATUSES which includes 'trialing', và by_plan
+        // (đếm phân bố gói hiện tại) cũng dùng chung filter đó ⇒ t3 CÓ cộng vào cả hai:
+        // MRR += 190_000 (Starter monthly, dù đang trial — số ước tính, chấp nhận over-count) và
+        // by_plan.starter.count += 1 (tổng 2, không phải 1).
         Subscription::withoutGlobalScope(TenantScope::class)->create([
             'tenant_id' => $t3->id, 'plan_id' => $starter->id, 'status' => Subscription::STATUS_TRIALING,
             'billing_cycle' => Subscription::CYCLE_TRIAL, 'trial_ends_at' => now()->addDays(3),
@@ -95,7 +99,9 @@ class AdminDashboardOverviewTest extends TestCase
         $resp = $this->getJson('/api/v1/admin/dashboard/overview')->assertOk();
 
         $resp->assertJsonPath('data.tenants.active_total', 3);
-        $resp->assertJsonPath('data.revenue.mrr_estimate', 190_000 + 225_000);
+        // 190_000 (t1 active) + 225_000 (t2 active yearly/12) + 190_000 (t3 trialing Starter —
+        // ALIVE_STATUSES bao gồm 'trialing' theo spec §6.2, xem ghi chú ở fixture t3 phía trên).
+        $resp->assertJsonPath('data.revenue.mrr_estimate', 190_000 + 225_000 + 190_000);
         $resp->assertJsonPath('data.revenue.invoices_this_month.paid_count', 1);
         $resp->assertJsonPath('data.revenue.invoices_this_month.paid_total', 190_000);
         $resp->assertJsonPath('data.revenue.invoices_this_month.pending_count', 1);
@@ -108,7 +114,8 @@ class AdminDashboardOverviewTest extends TestCase
         $resp->assertJsonPath('data.ai_usage.top_tenants.0.calls_this_month', 5);
 
         $byPlan = collect($resp->json('data.tenants.by_plan'));
-        $this->assertSame(1, $byPlan->firstWhere('plan_code', 'starter')['count']);
+        // starter = 2: t1 (active) + t3 (trialing, cũng thuộc ALIVE_STATUSES — spec §6.2).
+        $this->assertSame(2, $byPlan->firstWhere('plan_code', 'starter')['count']);
         $this->assertSame(1, $byPlan->firstWhere('plan_code', 'pro')['count']);
 
         $trialSoon = collect($resp->json('data.tenants.trial_ending_soon'));

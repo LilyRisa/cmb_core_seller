@@ -21,14 +21,6 @@ use Illuminate\Support\Carbon;
  */
 class AdminDashboardOverviewService
 {
-    /**
-     * Trạng thái subscription tính là "đang trả phí" cho mục đích thống kê phân bố gói/doanh thu —
-     * KHÁC với Subscription::ALIVE_STATUSES (bao gồm cả 'trialing', dùng cho gating tính năng).
-     * Dashboard cố tình loại 'trialing' ở đây: subscription dùng thử chưa phát sinh doanh thu, và
-     * việc gộp chung sẽ đếm trùng tenant đang thử việc vào cả phân bố gói lẫn MRR.
-     */
-    private const PAYING_STATUSES = [Subscription::STATUS_ACTIVE, Subscription::STATUS_PAST_DUE];
-
     public function __construct(private AiUsageReporter $aiUsage) {}
 
     public function overview(): array
@@ -48,7 +40,7 @@ class AdminDashboardOverviewService
         $activeTotal = Tenant::query()->where('status', 'active')->count();
 
         $byPlan = Subscription::withoutGlobalScope(TenantScope::class)
-            ->whereIn('subscriptions.status', self::PAYING_STATUSES)
+            ->whereIn('subscriptions.status', Subscription::ALIVE_STATUSES)
             ->join('plans', 'plans.id', '=', 'subscriptions.plan_id')
             ->selectRaw('plans.code as plan_code, plans.name as plan_name, COUNT(*) as count')
             ->groupBy('plans.code', 'plans.name')
@@ -105,8 +97,11 @@ class AdminDashboardOverviewService
     {
         $tz = app_display_tz();
 
+        // MRR estimate — spec 2026-07-21 §6.2: sum over Subscription::ALIVE_STATUSES (bao gồm
+        // 'trialing'), yearly billing_cycle quy đổi price_yearly/12 (chia nguyên, chấp nhận
+        // under-count vì đây là số ước tính).
         $mrr = (int) Subscription::withoutGlobalScope(TenantScope::class)
-            ->whereIn('subscriptions.status', self::PAYING_STATUSES)
+            ->whereIn('subscriptions.status', Subscription::ALIVE_STATUSES)
             ->join('plans', 'plans.id', '=', 'subscriptions.plan_id')
             ->select(['subscriptions.billing_cycle', 'plans.price_monthly', 'plans.price_yearly'])
             ->toBase()
