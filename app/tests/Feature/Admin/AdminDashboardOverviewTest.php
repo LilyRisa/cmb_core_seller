@@ -50,10 +50,12 @@ class AdminDashboardOverviewTest extends TestCase
             'current_period_start' => now(), 'current_period_end' => now()->addYear(),
         ]);
         // t3: trialing Starter, trial ends in 3 days ⇒ trial_ending_soon. Per spec 2026-07-21
-        // §6.2, MRR sums over Subscription::ALIVE_STATUSES which includes 'trialing', và by_plan
-        // (đếm phân bố gói hiện tại) cũng dùng chung filter đó ⇒ t3 CÓ cộng vào cả hai:
-        // MRR += 190_000 (Starter monthly, dù đang trial — số ước tính, chấp nhận over-count) và
-        // by_plan.starter.count += 1 (tổng 2, không phải 1).
+        // §6.2: by_plan (phân bố gói hiện tại) dùng Subscription::ALIVE_STATUSES nên t3 CÓ cộng
+        // vào by_plan.starter.count (tổng 2, không phải 1) — tenant dùng thử vẫn "đang ở" gói đó.
+        // Nhưng MRR (Monthly Recurring *Revenue*) dùng riêng self::MRR_STATUSES = [active,
+        // past_due], KHÔNG gồm 'trialing' — trial chưa phát sinh doanh thu. Vì vậy t3 KHÔNG cộng
+        // vào mrr_estimate. Đừng "sửa" giá trị mrr_estimate kỳ vọng bên dưới để gồm cả t3 — đã
+        // có lần cố tình làm vậy rồi bị coordinator sửa lại đúng theo spec.
         Subscription::withoutGlobalScope(TenantScope::class)->create([
             'tenant_id' => $t3->id, 'plan_id' => $starter->id, 'status' => Subscription::STATUS_TRIALING,
             'billing_cycle' => Subscription::CYCLE_TRIAL, 'trial_ends_at' => now()->addDays(3),
@@ -99,9 +101,10 @@ class AdminDashboardOverviewTest extends TestCase
         $resp = $this->getJson('/api/v1/admin/dashboard/overview')->assertOk();
 
         $resp->assertJsonPath('data.tenants.active_total', 3);
-        // 190_000 (t1 active) + 225_000 (t2 active yearly/12) + 190_000 (t3 trialing Starter —
-        // ALIVE_STATUSES bao gồm 'trialing' theo spec §6.2, xem ghi chú ở fixture t3 phía trên).
-        $resp->assertJsonPath('data.revenue.mrr_estimate', 190_000 + 225_000 + 190_000);
+        // 190_000 (t1 active) + 225_000 (t2 active yearly/12). t3 là 'trialing' nên KHÔNG cộng
+        // vào MRR (self::MRR_STATUSES chỉ gồm active/past_due — spec §6.2) dù nó VẪN cộng vào
+        // by_plan.starter.count phía dưới (ALIVE_STATUSES, khác status set với MRR).
+        $resp->assertJsonPath('data.revenue.mrr_estimate', 190_000 + 225_000);
         $resp->assertJsonPath('data.revenue.invoices_this_month.paid_count', 1);
         $resp->assertJsonPath('data.revenue.invoices_this_month.paid_total', 190_000);
         $resp->assertJsonPath('data.revenue.invoices_this_month.pending_count', 1);

@@ -21,6 +21,14 @@ use Illuminate\Support\Carbon;
  */
 class AdminDashboardOverviewService
 {
+    /**
+     * MRR = Monthly Recurring *Revenue* — chỉ tính subscription đang thực sự trả phí, KHÁC với
+     * Subscription::ALIVE_STATUSES (dùng cho `tenants.by_plan`, có gồm 'trialing' vì tenant dùng
+     * thử vẫn "đang ở" gói đó cho mục đích phân bố). Trial chưa phát sinh doanh thu nên phải loại
+     * khỏi MRR — xem spec 2026-07-21 §6.2 (mục "Correction (found during Phase 1 implementation").
+     */
+    private const MRR_STATUSES = [Subscription::STATUS_ACTIVE, Subscription::STATUS_PAST_DUE];
+
     public function __construct(private AiUsageReporter $aiUsage) {}
 
     public function overview(): array
@@ -97,11 +105,11 @@ class AdminDashboardOverviewService
     {
         $tz = app_display_tz();
 
-        // MRR estimate — spec 2026-07-21 §6.2: sum over Subscription::ALIVE_STATUSES (bao gồm
-        // 'trialing'), yearly billing_cycle quy đổi price_yearly/12 (chia nguyên, chấp nhận
-        // under-count vì đây là số ước tính).
+        // MRR estimate — spec 2026-07-21 §6.2: sum over self::MRR_STATUSES ('active' + 'past_due'
+        // only — KHÔNG gồm 'trialing', khác với by_plan ở tenants()), yearly billing_cycle quy
+        // đổi price_yearly/12 (chia nguyên, chấp nhận under-count vì đây là số ước tính).
         $mrr = (int) Subscription::withoutGlobalScope(TenantScope::class)
-            ->whereIn('subscriptions.status', Subscription::ALIVE_STATUSES)
+            ->whereIn('subscriptions.status', self::MRR_STATUSES)
             ->join('plans', 'plans.id', '=', 'subscriptions.plan_id')
             ->select(['subscriptions.billing_cycle', 'plans.price_monthly', 'plans.price_yearly'])
             ->toBase()
