@@ -147,4 +147,6 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
             ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.marketing-ai-providers.update');
         Route::delete('{code}', [AdminMarketingAiProviderController::class, 'destroy'])
             ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.marketing-ai-providers.destroy');
+        Route::post('test-draft', [AdminMarketingAiProviderController::class, 'testDraft'])
+            ->name('admin.marketing-ai-providers.test-draft');
     });

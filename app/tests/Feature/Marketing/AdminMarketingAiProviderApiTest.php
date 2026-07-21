@@ -18,7 +18,7 @@ class AdminMarketingAiProviderApiTest extends TestCase
         $this->actingAs(AdminUser::factory()->create(), 'admin_web');
     }
 
-    public function test_crud_and_exclusive_active_and_token_hidden(): void
+    public function test_crud_and_exclusive_active_and_token_encrypted_at_rest(): void
     {
         // create
         $this->postJson('/api/v1/admin/marketing-ai-providers', [
@@ -29,10 +29,10 @@ class AdminMarketingAiProviderApiTest extends TestCase
         $raw = DB::table('marketing_ai_providers')->where('code', 'forecast-openai')->value('api_key');
         $this->assertNotSame('SECRET', $raw); // encrypted at rest
 
-        // list — never exposes api_key
+        // list — page is super-admin-only (guard admin_web) ⇒ api_key returned plaintext
+        // for the SecretInput form (spec 2026-07-21 §5.3), still encrypted at rest above.
         $res = $this->getJson('/api/v1/admin/marketing-ai-providers')->assertOk();
-        $this->assertStringNotContainsString('SECRET', $res->getContent());
-        $this->assertStringNotContainsString('api_key', $res->getContent());
+        $res->assertJsonPath('data.0.api_key', 'SECRET');
 
         // a second active provider deactivates the first (single active)
         $this->postJson('/api/v1/admin/marketing-ai-providers', [

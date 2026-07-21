@@ -3,13 +3,16 @@
 namespace CMBcoreSeller\Modules\Marketing\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Integrations\Ai\CredentialProbe;
 use CMBcoreSeller\Modules\Marketing\Models\MarketingAiProvider;
+use CMBcoreSeller\Modules\Marketing\Rules\SafeProviderUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
  * Super-admin CRUD for the DEDICATED marketing AI provider (forecast/strategy).
- * Separate from messaging `ai_providers`. Guard: admin_web. api_key never exposed.
+ * Separate from messaging `ai_providers`. Guard: admin_web. api_key returned plaintext
+ * (super-admin-only surface — see safe()).
  */
 class AdminMarketingAiProviderController extends Controller
 {
@@ -48,6 +51,23 @@ class AdminMarketingAiProviderController extends Controller
         return response()->json(['data' => ['deleted' => true]]);
     }
 
+    public function testDraft(Request $request, CredentialProbe $probe): JsonResponse
+    {
+        $data = $request->validate([
+            'adapter' => ['required', 'in:anthropic,openai_compatible'],
+            'base_url' => ['nullable', 'string', 'max:255', new SafeProviderUrl],
+            'api_key' => ['nullable', 'string'],
+            'default_model' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        return response()->json(['data' => $probe->probeChat(
+            $data['adapter'],
+            $data['base_url'] ?? null,
+            $data['api_key'] ?? null,
+            $data['default_model'] ?? null,
+        )]);
+    }
+
     /** @return array<string,mixed> */
     private function validateProvider(Request $request, bool $creating): array
     {
@@ -56,7 +76,7 @@ class AdminMarketingAiProviderController extends Controller
             'display_name' => ['nullable', 'string', 'max:255'],
             'adapter' => [$creating ? 'required' : 'sometimes', 'in:anthropic,openai_compatible,manual'],
             'api_key' => ['nullable', 'string'],
-            'base_url' => ['nullable', 'string', 'max:255'],
+            'base_url' => ['nullable', 'string', 'max:255', new SafeProviderUrl],
             'default_model' => ['nullable', 'string', 'max:64'],
             'is_active' => ['boolean'],
         ]);
@@ -83,6 +103,11 @@ class AdminMarketingAiProviderController extends Controller
             'default_model' => $p->default_model,
             'is_active' => (bool) $p->is_active,
             'has_key' => $p->getRawOriginal('api_key') !== null,
+            // [TIKTOK-REVIEW-TEMP] Cùng quy ước với AdminAiProviderController (Messaging,
+            // present()): trang chỉ super-admin (guard admin_web) truy cập ⇒ hiển thị thẳng
+            // key để dùng chung SecretInput (spec 2026-07-21 §5.3). Trước đây field này
+            // không tồn tại trong response ⇒ FE phải dùng input "để trống = giữ nguyên".
+            'api_key' => $p->api_key,
         ];
     }
 }
