@@ -66,12 +66,12 @@ export function AdminGrowthPage() {
                     columns={columns}
                     dataSource={data ?? []}
                     loading={isLoading}
-                    onRow={(r) => ({
-                        onClick: () => navigate('/admin/tenants', {
-                            state: groupBy === 'utm_source' ? { presetUtmSource: r.source } : undefined,
-                        }),
-                        style: { cursor: groupBy === 'utm_source' ? 'pointer' : 'default' },
-                    })}
+                    onRow={(r) => groupBy === 'utm_source'
+                        ? {
+                            onClick: () => navigate('/admin/tenants', { state: { presetUtmSource: r.source } }),
+                            style: { cursor: 'pointer' },
+                        }
+                        : { style: { cursor: 'default' } }}
                     pagination={false}
                     size="middle"
                 />
