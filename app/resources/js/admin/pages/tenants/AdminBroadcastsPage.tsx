@@ -1,19 +1,55 @@
-import { useState } from 'react';
-import { App, Button, Card, Form, Input, Radio, Table, Tag, Typography } from 'antd';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { App, Button, Card, Form, Input, Radio, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { SendOutlined, NotificationOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { formatDate } from '@/lib/format';
-import { useAdminBroadcasts, useAdminCreateBroadcast, type AdminBroadcastRow } from '@admin/lib/admin';
-import { TenantPicker } from '@admin/components/TenantPicker';
+import { useAdminBroadcasts, useAdminCreateBroadcast, type AdminBroadcastRow, type AdminTenantSummary } from '@admin/lib/admin';
+import { TenantPicker, type TenantPickerOption } from '@admin/components/TenantPicker';
 import { errorMessage } from '@/lib/api';
 
 export function AdminBroadcastsPage() {
     const { message } = App.useApp();
+    const location = useLocation();
+    const navigate = useNavigate();
     const [page, setPage] = useState(1);
     const { data, isFetching } = useAdminBroadcasts({ page });
     const create = useAdminCreateBroadcast();
     const [form] = Form.useForm();
+    const [presetTenants, setPresetTenants] = useState<AdminTenantSummary[]>([]);
+
+    // Lối tắt từ AdminTenantsPage: chọn nhiều dòng tenant (checkbox) rồi bấm "Gửi broadcast cho N
+    // tenant đã chọn" → điều hướng sang đây kèm `state.presetTenants` (mảng AdminTenantSummary đầy
+    // đủ, không chỉ ID — để TenantPicker hiển thị đúng tên ngay, xem TenantPicker.tsx). Đây là lối
+    // tắt BỔ SUNG — form "Tenant cụ thể" thủ công bên dưới (tìm & chọn qua TenantPicker) vẫn giữ
+    // nguyên, vẫn hữu ích khi chưa có sẵn danh sách tenant lọc trước.
+    useEffect(() => {
+        const preset = (location.state as { presetTenants?: AdminTenantSummary[] } | null)?.presetTenants;
+        if (preset && preset.length > 0) {
+            form.setFieldsValue({ audience_kind: 'tenant_ids', tenant_ids: preset.map((t) => t.id) });
+            setPresetTenants(preset);
+            message.info(`Đã điền sẵn ${preset.length} tenant từ danh sách đã chọn ở trang Tenants.`);
+            // Xoá state khỏi history sau khi dùng — tránh điền lại nếu admin F5 hoặc quay lại
+            // trang này lần sau (history state của trình duyệt vẫn còn nếu không xoá).
+            navigate(location.pathname, { replace: true, state: null });
+        }
+        // Chỉ chạy 1 lần lúc mount — location.state chỉ có ý nghĩa ở lần điều hướng đầu tiên tới
+        // trang này, không phải mỗi khi form/location thay đổi.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const presetOptions: TenantPickerOption[] = presetTenants.map((t) => ({
+        value: t.id,
+        label: (
+            <Space size={6}>
+                <Typography.Text>{t.name}</Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    · {t.code}{t.owner ? ` · ${t.owner.email}` : ''}
+                </Typography.Text>
+            </Space>
+        ),
+    }));
 
     const columns: ColumnsType<AdminBroadcastRow> = [
         { title: 'ID', dataIndex: 'id', width: 64 },
@@ -51,7 +87,11 @@ export function AdminBroadcastsPage() {
                             audience.tenant_ids = (v.tenant_ids ?? []) as number[];
                         }
                         create.mutate({ subject: v.subject, body_markdown: v.body_markdown, audience }, {
-                            onSuccess: (b) => { message.success(`Đã gửi tới ${b.sent_count}/${b.recipient_count} người.`); form.resetFields(); },
+                            onSuccess: (b) => {
+                                message.success(`Đã gửi tới ${b.sent_count}/${b.recipient_count} người.`);
+                                form.resetFields();
+                                setPresetTenants([]);
+                            },
                             onError: (e) => message.error(errorMessage(e, 'Gửi lỗi.')),
                         });
                     }}
@@ -71,7 +111,7 @@ export function AdminBroadcastsPage() {
                     <Form.Item shouldUpdate={(p, c) => p.audience_kind !== c.audience_kind} noStyle>
                         {({ getFieldValue }) => getFieldValue('audience_kind') === 'tenant_ids' && (
                             <Form.Item name="tenant_ids" label="Tenant cụ thể" rules={[{ required: true }]}>
-                                <TenantPicker mode="multiple" placeholder="Tìm theo mã / tên / email…" />
+                                <TenantPicker mode="multiple" placeholder="Tìm theo mã / tên / email…" initialOptions={presetOptions} />
                             </Form.Item>
                         )}
                     </Form.Item>
