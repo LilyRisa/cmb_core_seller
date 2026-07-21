@@ -8,6 +8,7 @@ import { AdminLayout } from './AdminLayout';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminTenantsPage } from './pages/tenants/AdminTenantsPage';
+import { AdminGrowthPage } from './pages/growth/AdminGrowthPage';
 import { AdminTenantDetailPage } from './pages/tenants/AdminTenantDetailPage';
 import { AdminVouchersPage } from './pages/tenants/AdminVouchersPage';
 import { AdminPlansPage } from './pages/tenants/AdminPlansPage';
@@ -42,6 +43,7 @@ export function AdminApp() {
                     <Route index element={<AdminDashboardPage />} />
                     <Route path="tenants/:id" element={<AdminTenantDetailPage />} />
                     <Route path="tenants" element={<AdminTenantsPage />} />
+                    <Route path="growth" element={<AdminGrowthPage />} />
                     <Route path="vouchers" element={<AdminVouchersPage />} />
                     <Route path="plans" element={<AdminPlansPage />} />
                     <Route path="broadcasts" element={<AdminBroadcastsPage />} />

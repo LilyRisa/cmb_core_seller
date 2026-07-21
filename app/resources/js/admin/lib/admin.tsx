@@ -710,3 +710,27 @@ export function useValidateVoucher() {
         },
     });
 }
+
+export interface GrowthAttributionRow {
+    source: string;
+    signups: number;
+    paid: number;
+    conversion_rate: number;
+    revenue_vnd: number;
+}
+
+export interface GrowthAttributionFilters {
+    from?: string;
+    to?: string;
+    group_by?: 'utm_source' | 'utm_campaign' | 'utm_medium';
+}
+
+export function useAdminGrowthAttribution(filters: GrowthAttributionFilters = {}) {
+    return useQuery({
+        queryKey: ['admin', 'growth', 'attribution', filters],
+        queryFn: async () => {
+            const { data } = await api.get<{ data: GrowthAttributionRow[] }>('/admin/growth/attribution', { params: filters });
+            return data.data;
+        },
+    });
+}

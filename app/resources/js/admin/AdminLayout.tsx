@@ -27,6 +27,7 @@ import {
     MailOutlined,
     RiseOutlined,
     EyeOutlined,
+    FunnelPlotOutlined,
 } from '@ant-design/icons';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminLogout, useAdminMe } from './lib/adminAuth';
@@ -47,6 +48,7 @@ const SIDEBAR: SidebarEntry[] = [
         groupLabel: 'KHÁCH HÀNG',
         items: [
             { key: '/admin/tenants', icon: <ShopOutlined />, label: 'Tenants' },
+            { key: '/admin/growth', icon: <FunnelPlotOutlined />, label: 'Tăng trưởng' },
             { key: '/admin/users', icon: <UserOutlined />, label: 'Người dùng' },
             { key: '/admin/vouchers', icon: <GiftOutlined />, label: 'Voucher' },
             { key: '/admin/plans', icon: <ProfileOutlined />, label: 'Gói thuê bao' },
