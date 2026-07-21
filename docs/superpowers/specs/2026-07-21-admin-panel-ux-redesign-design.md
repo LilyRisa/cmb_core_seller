@@ -12,8 +12,9 @@ interaction conventions. A code audit (see §2) found:
 - The same class of risky action (suspend/disable/delete) is confirmed 3-4 different ways
   across pages, with no relationship between UI friction and actual risk.
 - Edit/create forms use Modal, Drawer, or an inline Card at random depending on the page.
-- API-key/secret fields are handled 3 incompatible ways (plaintext, blank-to-keep, proper
-  mask+reveal).
+- API-key/secret fields are handled 3 incompatible ways (two independent hand-rolled plaintext
+  inputs, plus a blank-means-keep-existing input) despite a shared `SecretInput` component
+  already existing (see §5.3 — it is a deliberate plaintext-display control, not mask+reveal).
 - A 5-page AI-configuration cluster (`AdminAiProvidersPage`, `AdminAiSupportPage`,
   `AdminMarketingAiProvidersPage`, `AdminTranscriptionPage`, `AdminVisualRerankPage`) has no
   visible relationship to each other and reuses the same icon (`ApiOutlined`) for two of them.
@@ -135,10 +136,18 @@ Two tiers, chosen by the action's real consequence (not by which page happens to
 
 ### 5.3 Secret/API-key fields
 
-Reuse the existing `SecretInput` component (`admin/components/SecretInput.tsx`, already used by
-`SettingRow`) everywhere a credential is entered: `AdminAiProvidersPage`, `AdminAiSupportPage`,
-`AdminMarketingAiProvidersPage`. Removes both the plaintext-display pattern and the
-blank-means-keep pattern in favor of one mask+reveal control.
+**Correction from the original audit:** `SecretInput` (`admin/components/SecretInput.tsx`) is
+**not** a mask+reveal control — its own code comment states the project owner explicitly
+requested plaintext display (`[TIKTOK-REVIEW-TEMP]`, tied to TikTok app-review needs), so it
+shows the value in clear with an "Đặt giá trị" button to overwrite. Do **not** add masking here —
+that would contradict a deliberate, named product decision.
+
+The actual standardization: `SecretInput` (plaintext-display, click-to-edit, already used by
+`SettingRow`/`SystemSettingsPage`) becomes the **one** reused component for every credential
+field, replacing the two other ad-hoc patterns: `AdminAiProvidersPage`/`AdminAiSupportPage`'s own
+hand-rolled plaintext `Input`+`Button`, and `AdminMarketingAiProvidersPage`'s
+blank-means-keep-existing `Input`. All three converge on `SecretInput` as-is — this is a
+de-duplication, not a new masking behavior.
 
 ### 5.4 Test-before-save for AI credentials
 
@@ -216,10 +225,19 @@ using `app_display_tz()` per [[timezone-architecture-utc-store-hcm-display]] so 
 
 ### 6.2 MRR calculation
 
-Sum `plans.price_monthly` for every `subscriptions` row whose `status` is in
-`Subscription::ALIVE_STATUSES`; for rows with `billing_cycle = 'yearly'`, use
-`plans.price_yearly / 12` (integer division, document the rounding rule in the implementation
-plan — e.g. round down, note the resulting under-count is acceptable for an *estimate*).
+**Correction (found during Phase 1 implementation, 2026-07-21):** the original text below said to
+use `Subscription::ALIVE_STATUSES` (`[trialing, active, past_due]`) uniformly for both `by_plan`
+and `mrr_estimate`. That is correct for `tenants.by_plan` (a trialing tenant genuinely IS "on"
+that plan for distribution purposes) but wrong for MRR specifically — Monthly Recurring **Revenue**
+must only count tenants actually paying. A trialing subscription has billed nothing; including it
+overstates real revenue. Use two different status sets:
+- `tenants.by_plan`: `Subscription::ALIVE_STATUSES` (trialing + active + past_due) — unchanged.
+- `revenue.mrr_estimate`: only `active` + `past_due` (a private "paying" status set, excluding
+  `trialing`) — this is the one that must change from the original text below.
+
+Sum `plans.price_monthly` for every `subscriptions` row whose `status` is `active` or `past_due`
+(NOT `trialing`); for rows with `billing_cycle = 'yearly'`, use `plans.price_yearly / 12` (integer
+division — round down, the resulting under-count is acceptable for an *estimate*).
 
 ### 6.3 AI usage — contract gap to resolve during implementation
 
