@@ -63,6 +63,9 @@ class AdminTenantController extends Controller
         if ($suspended) {
             $query->where('status', 'suspended');
         }
+        if ($utmSource = (string) $request->query('utm_source', '')) {
+            $query->where('acquisition->utm_source', $utmSource);
+        }
 
         $page = $query->paginate($perPage);
 
@@ -418,6 +421,7 @@ class AdminTenantController extends Controller
             'slug' => $tenant->slug,
             'code' => $tenant->code,
             'status' => $tenant->status,
+            'acquisition' => $tenant->acquisition,
             'created_at' => $tenant->created_at?->toIso8601String(),
             'owner' => $owner && $owner->user ? [
                 'id' => $owner->user->id, 'name' => $owner->user->name, 'email' => $owner->user->email,
