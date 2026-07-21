@@ -39,9 +39,30 @@ class AuthController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email', new NotDisposableEmail],
             'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
             'tenant_name' => ['nullable', 'string', 'max:255'],
+            // SPEC 2026-07-22 — first-touch UTM/fbclid bắt ở FE (localStorage), gắn lúc submit.
+            'event_id' => ['nullable', 'string', 'max:64'],
+            'acquisition' => ['nullable', 'array'],
+            'acquisition.utm_source' => ['nullable', 'string', 'max:255'],
+            'acquisition.utm_medium' => ['nullable', 'string', 'max:255'],
+            'acquisition.utm_campaign' => ['nullable', 'string', 'max:255'],
+            'acquisition.utm_content' => ['nullable', 'string', 'max:255'],
+            'acquisition.utm_term' => ['nullable', 'string', 'max:255'],
+            'acquisition.fbclid' => ['nullable', 'string', 'max:255'],
+            'acquisition.fbp' => ['nullable', 'string', 'max:255'],
+            'acquisition.fbc' => ['nullable', 'string', 'max:255'],
+            'acquisition.landing_page' => ['nullable', 'string', 'max:255'],
+            'acquisition.referrer' => ['nullable', 'string', 'max:255'],
         ]);
 
-        [$user, $tenant] = DB::transaction(function () use ($data) {
+        // `ip`/`user_agent` quan sát PHÍA SERVER lúc request này — không tin giá trị client gửi lên.
+        $acquisition = array_merge($data['acquisition'] ?? [], [
+            'event_id' => $data['event_id'] ?? null,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'captured_at' => now()->toIso8601String(),
+        ]);
+
+        [$user, $tenant] = DB::transaction(function () use ($data, $acquisition) {
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
@@ -49,6 +70,7 @@ class AuthController extends Controller
             ]);
 
             $tenant = Tenant::create(['name' => $data['tenant_name'] ?? ($data['name'].' Shop')]);
+            $tenant->forceFill(['acquisition' => $acquisition])->save();
             $roles = app(TenantRoleProvisioner::class)->seedDefaults($tenant);
             $tenant->users()->attach($user->getKey(), [
                 'role' => Role::Owner->value,
@@ -58,7 +80,8 @@ class AuthController extends Controller
             return [$user, $tenant];
         });
 
-        // Tenant tạo xong ⇒ phát event để Billing khởi động trial 14 ngày (SPEC 0018 §3.1).
+        // Tenant tạo xong ⇒ phát event để Billing khởi động trial 14 ngày (SPEC 0018 §3.1)
+        // và Tenancy tự báo CompleteRegistration về Meta CAPI nếu đã cấu hình (SPEC 2026-07-22).
         TenantCreated::dispatch($tenant);
 
         // SPEC 0022 — fire `Registered` event ⇒ Laravel listener `SendEmailVerificationNotification`
