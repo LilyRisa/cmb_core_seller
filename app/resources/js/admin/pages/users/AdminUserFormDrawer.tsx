@@ -1,13 +1,17 @@
-// Spec 2026-05-17 — drawer thêm/sửa super-admin.
+// Spec 2026-05-17 (redesign 2026-07-21) — drawer thêm/sửa super-admin.
 //
 // `target === 'new'`: form tạo mới (username + name + email? + password).
 // `target` là AdminRow: form sửa metadata (name + email) + action buttons
-// (reset password, suspend, reactivate). Không cho phép tự suspend / reset
+// (đặt lại mật khẩu, tạm khoá, mở lại). Không cho phép tự tạm khoá / đặt lại mật khẩu
 // chính mình — BE chặn (409 CANNOT_SELF_MUTATE). UI show error message.
+// Tạm khoá/Mở lại dùng useReasonConfirm — tier "high-impact" (khoá tài khoản khỏi hệ
+// thống, cả 2 chiều) theo docs/superpowers/specs/2026-07-21-admin-panel-ux-redesign-design.md §5.1.
+// Đặt lại mật khẩu vẫn dùng Popconfirm (spec không xếp tier high-impact cho hành động này).
 
 import { useEffect, useState } from 'react';
 import { Drawer, Form, Input, Space, Button, App, Popconfirm, Typography } from 'antd';
 import { errorMessage } from '@/lib/api';
+import { useReasonConfirm } from '@admin/components/ReasonConfirmModal';
 import {
     useCreateAdminUser,
     useUpdateAdminUser,
@@ -36,6 +40,7 @@ export function AdminUserFormDrawer({
     const reactivate = useReactivateAdminUser();
     const reset = useResetAdminPassword();
     const { message } = App.useApp();
+    const confirmWithReason = useReasonConfirm();
 
     useEffect(() => {
         if (!open) return;
@@ -53,6 +58,33 @@ export function AdminUserFormDrawer({
 
     const isNew = target === 'new';
     const editing = target && typeof target !== 'string' ? target : null;
+
+    const onSuspend = () => {
+        if (!editing) return;
+        confirmWithReason({
+            title: `Tạm khoá admin «${editing.username}»?`,
+            danger: true,
+            okText: 'Tạm khoá',
+            onConfirm: async (reason) => {
+                await suspend.mutateAsync({ id: editing.id, reason });
+                message.success('Đã tạm khoá.');
+                onClose();
+            },
+        });
+    };
+
+    const onReactivate = () => {
+        if (!editing) return;
+        confirmWithReason({
+            title: `Mở lại admin «${editing.username}»?`,
+            okText: 'Mở lại',
+            onConfirm: async (reason) => {
+                await reactivate.mutateAsync({ id: editing.id, reason });
+                message.success('Đã mở lại.');
+                onClose();
+            },
+        });
+    };
 
     return (
         <Drawer
@@ -148,37 +180,16 @@ export function AdminUserFormDrawer({
                                     );
                                 }}
                             >
-                                <Button>Reset password</Button>
+                                <Button>Đặt lại mật khẩu</Button>
                             </Popconfirm>
 
                             {editing.is_active ? (
-                                <Popconfirm
-                                    title="Vô hiệu hoá admin này?"
-                                    onConfirm={() =>
-                                        suspend.mutate(editing.id, {
-                                            onSuccess: () => {
-                                                message.success('Đã vô hiệu hoá.');
-                                                onClose();
-                                            },
-                                            onError: (e) => message.error(errorMessage(e)),
-                                        })
-                                    }
-                                >
-                                    <Button danger>Suspend</Button>
-                                </Popconfirm>
+                                <Button danger onClick={onSuspend} loading={suspend.isPending}>
+                                    Tạm khoá
+                                </Button>
                             ) : (
-                                <Button
-                                    onClick={() =>
-                                        reactivate.mutate(editing.id, {
-                                            onSuccess: () => {
-                                                message.success('Đã kích hoạt lại.');
-                                                onClose();
-                                            },
-                                            onError: (e) => message.error(errorMessage(e)),
-                                        })
-                                    }
-                                >
-                                    Reactivate
+                                <Button onClick={onReactivate} loading={reactivate.isPending}>
+                                    Mở lại
                                 </Button>
                             )}
                         </>
@@ -187,7 +198,7 @@ export function AdminUserFormDrawer({
 
                 {editing && (
                     <Typography.Paragraph type="secondary" style={{ marginTop: 12, fontSize: 12 }}>
-                        Lưu ý: không thể tự suspend / reset password chính mình.
+                        Lưu ý: không thể tự tạm khoá / đặt lại mật khẩu chính mình.
                     </Typography.Paragraph>
                 )}
             </Form>
