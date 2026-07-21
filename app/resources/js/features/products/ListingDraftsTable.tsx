@@ -145,23 +145,25 @@ export function ListingDraftsTable({
         {
             title: 'Sản phẩm',
             key: 'product',
+            width: 280,
             render: (_, r) => (
-                <Space>
+                <Space style={{ minWidth: 0 }}>
                     {r.productImage ? (
                         <Image src={r.productImage} width={40} height={40} style={{ objectFit: 'cover', borderRadius: 6 }} />
                     ) : (
-                        <div style={{ width: 40, height: 40, background: '#F1F5F9', borderRadius: 6 }} />
+                        <div style={{ width: 40, height: 40, background: '#F1F5F9', borderRadius: 6, flex: 'none' }} />
                     )}
-                    <Typography.Text>{r.productName}</Typography.Text>
+                    <Typography.Text ellipsis={{ tooltip: r.productName }} style={{ maxWidth: 210 }}>{r.productName}</Typography.Text>
                 </Space>
             ),
         },
         {
             title: 'Gian hàng',
             key: 'shop',
+            width: 180,
             render: (_, r) => (
-                <Space size={4}>
-                    <span>{shopName(r.channel_account_id)}</span>
+                <Space size={4} style={{ minWidth: 0 }}>
+                    <Typography.Text ellipsis={{ tooltip: shopName(r.channel_account_id) }} style={{ maxWidth: 130 }}>{shopName(r.channel_account_id)}</Typography.Text>
                     <Tag>{r.provider}</Tag>
                 </Space>
             ),
@@ -249,6 +251,7 @@ export function ListingDraftsTable({
                 loading={isLoading}
                 dataSource={rows}
                 columns={columns}
+                scroll={{ x: 'max-content' }}
                 locale={{ emptyText: <Empty description={emptyText} /> }}
                 rowSelection={
                     showPush

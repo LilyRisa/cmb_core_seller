@@ -40,13 +40,17 @@ export function JournalsPage() {
         {
             title: 'Mã JE',
             dataIndex: 'code',
-            width: 160,
+            width: 190,
             render: (code, r) => (
-                <Space size={6}>
-                    <Typography.Link onClick={() => setShowId(r.id)} style={{ fontFamily: 'ui-monospace, monospace' }}>{code}</Typography.Link>
-                    {r.is_auto && <Tag color="processing" style={{ marginInlineEnd: 0, fontSize: 11 }}>tự động</Tag>}
-                    {r.is_reversal_of_id && <Tag color="warning" style={{ marginInlineEnd: 0, fontSize: 11 }}>đảo</Tag>}
-                    {r.is_adjustment && <Tag color="purple" style={{ marginInlineEnd: 0, fontSize: 11 }}>điều chỉnh</Tag>}
+                <Space direction="vertical" size={2}>
+                    <Typography.Link onClick={() => setShowId(r.id)} style={{ fontFamily: 'ui-monospace, monospace', whiteSpace: 'nowrap' }}>{code}</Typography.Link>
+                    {(r.is_auto || r.is_reversal_of_id || r.is_adjustment) && (
+                        <Space size={4} wrap>
+                            {r.is_auto && <Tag color="processing" style={{ marginInlineEnd: 0, fontSize: 11 }}>tự động</Tag>}
+                            {r.is_reversal_of_id && <Tag color="warning" style={{ marginInlineEnd: 0, fontSize: 11 }}>đảo</Tag>}
+                            {r.is_adjustment && <Tag color="purple" style={{ marginInlineEnd: 0, fontSize: 11 }}>điều chỉnh</Tag>}
+                        </Space>
+                    )}
                 </Space>
             ),
         },
@@ -177,7 +181,7 @@ export function JournalsPage() {
                         showTotal: (t) => `Tổng ${t} bút toán`,
                         onChange: (p, ps) => { setPage(p); setPerPage(ps); },
                     }}
-                    scroll={{ x: 1000 }}
+                    scroll={{ x: 'max-content' }}
                     size="middle"
                     locale={{ emptyText: 'Chưa có bút toán nào. Hoạt động kho/đơn sẽ tự ghi sổ; hoặc bấm "Tạo bút toán tay".' }}
                 />

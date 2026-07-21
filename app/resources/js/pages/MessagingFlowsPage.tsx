@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { App as AntApp, Alert, Button, Card, Form, Input, Modal, Popconfirm, Radio, Space, Switch, Table, Tag } from 'antd';
+import { App as AntApp, Alert, Button, Card, Form, Input, Modal, Popconfirm, Radio, Space, Switch, Table, Tag, Typography } from 'antd';
 import { CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
@@ -67,8 +67,10 @@ export function MessagingFlowsPage() {
     });
 
     const columns: ColumnsType<AutomationFlow> = [
-        { title: 'Tên', dataIndex: 'name', render: (v: string, r) => (
-            <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/messaging/flows/${r.id}/edit`)}>{v}</Button>
+        { title: 'Tên', dataIndex: 'name', width: 220, render: (v: string, r) => (
+            <Button type="link" style={{ padding: 0, maxWidth: '100%' }} onClick={() => navigate(`/messaging/flows/${r.id}/edit`)}>
+                <Typography.Text ellipsis={{ tooltip: v }} style={{ color: 'inherit' }}>{v}</Typography.Text>
+            </Button>
         ) },
         { title: 'Kích hoạt khi', dataIndex: 'trigger_type', width: 180, render: (t: FlowTriggerType) => TRIGGER_LABELS[t] ?? t },
         { title: 'Phạm vi trang', width: 200, render: (_, r) => (
@@ -103,7 +105,7 @@ export function MessagingFlowsPage() {
                     description={'Xuất bản một luồng "Mọi tin nhắn" cho Facebook sẽ tự tắt AI tự động trả lời Facebook (chỉ một trong hai được chạy).'} />
             )}
             <Card>
-                <Table<AutomationFlow> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns} pagination={false} />
+                <Table<AutomationFlow> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns} pagination={false} scroll={{ x: 'max-content' }} />
             </Card>
 
             <Modal open={createOpen} onCancel={() => setCreateOpen(false)} onOk={createFlow} confirmLoading={save.isPending}

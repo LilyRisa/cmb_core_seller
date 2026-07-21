@@ -20,8 +20,8 @@ export function AppHeader({ left, onOpenSettings, className }: { left?: React.Re
         : { key: 'settings', icon: <SettingOutlined />, label: <Link to="/settings/members">Cài đặt</Link> };
 
     return (
-        <div className={className} style={{ background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 0 8px', borderBottom: '1px solid #f0f0f0', height: 56 }}>
-            <Space>
+        <div className={className} style={{ background: '#fff', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', rowGap: 8, padding: '8px 16px 8px 8px', borderBottom: '1px solid #f0f0f0', minHeight: 56 }}>
+            <Space wrap>
                 {left}
                 <ShopOutlined style={{ color: '#8c8c8c' }} />
                 <Select
@@ -31,7 +31,7 @@ export function AppHeader({ left, onOpenSettings, className }: { left?: React.Re
                     onChange={(v) => { setCurrentTenantId(v); navigate(0); }}
                 />
             </Space>
-            <Space size="middle">
+            <Space size="middle" wrap>
                 <HeaderBillingActions />
                 <Tooltip title="Cài tiện ích Chrome để sao chép sản phẩm">
                     <Button type="text" href={CHROME_EXTENSION_URL} target="_blank" icon={<ChromeOutlined />} />

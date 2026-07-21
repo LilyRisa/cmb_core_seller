@@ -76,6 +76,7 @@ function LevelsTab() {
                 <Button size="small" icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
             </Space>
             <Table<InventoryLevel> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                scroll={{ x: 'max-content' }}
                 locale={{ emptyText: <Empty description="Chưa có tồn kho. Thêm SKU rồi điều chỉnh tồn, hoặc đơn về sẽ tạo dòng tồn." /> }}
                 rowClassName={(r) => (r.is_negative ? 'row-has-issue' : '')}
                 pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} dòng` }} />
@@ -126,6 +127,7 @@ function StockPushLogsTab() {
                 <Button size="small" icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
             </Space>
             <Table<StockPushLog> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                scroll={{ x: 'max-content' }}
                 locale={{ emptyText: <Empty description="Chưa có lịch sử đẩy tồn." /> }}
                 pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} dòng` }} />
         </>
@@ -188,6 +190,7 @@ function SkusTab() {
                 )}
             </Space>
             <Table<Sku> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                scroll={{ x: 'max-content' }}
                 rowSelection={canMap ? { selectedRowKeys: selectedKeys, onChange: (k) => setSelectedKeys(k as number[]) } : undefined}
                 locale={{ emptyText: <Empty description="Chưa có SKU." /> }}
                 pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} SKU` }} />
@@ -332,6 +335,7 @@ function ListingsTab() {
                 <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
             </Space>
             <Table<ChannelListing> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                scroll={{ x: 'max-content' }}
                 locale={{ emptyText: <Empty description="Chưa có SKU sàn nào. Bấm “Đồng bộ listing từ sàn” để kéo sản phẩm/SKU của gian hàng về." /> }}
                 pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} SKU sàn` }} />
 

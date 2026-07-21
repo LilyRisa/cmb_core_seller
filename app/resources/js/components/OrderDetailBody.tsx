@@ -42,12 +42,12 @@ export function OrderDetailBody({ order }: { order: Order }) {
 
     const addr: Record<string, string | undefined> = order.shipping_address ?? {};
     const itemColumns: ColumnsType<OrderItem> = [
-        { title: 'Sản phẩm', key: 'name', render: (_, it) => (
-            <Space>
-                <Avatar shape="square" size={48} src={it.image ?? undefined} style={{ background: '#f0f0f0' }}>SP</Avatar>
-                <Space direction="vertical" size={0}>
-                    <span style={{ fontWeight: 500 }}>{it.name}</span>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{it.variation ?? ''} {it.seller_sku ? `· SKU: ${it.seller_sku}` : ''}</Typography.Text>
+        { title: 'Sản phẩm', key: 'name', width: 260, render: (_, it) => (
+            <Space style={{ minWidth: 0 }}>
+                <Avatar shape="square" size={48} src={it.image ?? undefined} style={{ background: '#f0f0f0', flex: 'none' }}>SP</Avatar>
+                <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 190 }}>
+                    <Typography.Text style={{ fontWeight: 500, display: 'block' }} ellipsis={{ tooltip: it.name }}>{it.name}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: `${it.variation ?? ''} ${it.seller_sku ? `· SKU: ${it.seller_sku}` : ''}` }}>{it.variation ?? ''} {it.seller_sku ? `· SKU: ${it.seller_sku}` : ''}</Typography.Text>
                     {!it.is_mapped && <Tag color="warning" style={{ marginTop: 2 }}>Chưa ghép SKU</Tag>}
                 </Space>
             </Space>
@@ -106,7 +106,7 @@ export function OrderDetailBody({ order }: { order: Order }) {
                                 onClick={() => createPrintJob.mutate({ type: 'invoice', order_ids: [order.id] }, {
                                     onSuccess: (j) => setPrintJobId(j.id), onError: () => message.error('Không tạo được phiếu in'),
                                 })}>In hoá đơn</Button>)}>
-                        <Table<OrderItem> rowKey="id" size="small" pagination={false} dataSource={order.items ?? []} columns={itemColumns} locale={{ emptyText: <Empty /> }} />
+                        <Table<OrderItem> rowKey="id" size="small" pagination={false} dataSource={order.items ?? []} columns={itemColumns} scroll={{ x: 'max-content' }} locale={{ emptyText: <Empty /> }} />
                         <Divider />
                         <div style={{ maxWidth: 360, marginLeft: 'auto' }}>
                             <AmountRow label="Tạm tính" value={order.item_total} currency={order.currency} />

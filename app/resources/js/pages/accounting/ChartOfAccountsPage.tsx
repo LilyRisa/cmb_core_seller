@@ -172,7 +172,7 @@ export function ChartOfAccountsPage() {
                         defaultExpandAllRows: true,
                         rowExpandable: (r) => Array.isArray(r.children) && r.children.length > 0,
                     }}
-                    scroll={{ x: 900 }}
+                    scroll={{ x: 'max-content' }}
                     locale={{ emptyText: 'Chưa có tài khoản nào — bấm "Khởi tạo TT133" ở banner phía trên.' }}
                 />
             </Card>

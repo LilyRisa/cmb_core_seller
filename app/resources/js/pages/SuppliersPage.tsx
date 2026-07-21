@@ -27,7 +27,7 @@ export function SuppliersPage() {
 
     const columns: ColumnsType<Supplier> = [
         { title: 'Mã NCC', dataIndex: 'code', key: 'code', width: 140, render: (v) => <Typography.Text strong>{v}</Typography.Text> },
-        { title: 'Tên NCC', dataIndex: 'name', key: 'name', render: (v, r) => <Space direction="vertical" size={0}><span>{v}</span>{r.tax_code && <Typography.Text type="secondary" style={{ fontSize: 12 }}>MST: {r.tax_code}</Typography.Text>}</Space> },
+        { title: 'Tên NCC', dataIndex: 'name', key: 'name', width: 220, render: (v, r) => <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 200 }}><Typography.Text ellipsis={{ tooltip: v }}>{v}</Typography.Text>{r.tax_code && <Typography.Text type="secondary" style={{ fontSize: 12 }}>MST: {r.tax_code}</Typography.Text>}</Space> },
         { title: 'Liên hệ', key: 'contact', width: 200, render: (_, r) => <Space direction="vertical" size={0} style={{ fontSize: 12 }}>{r.phone && <span>{r.phone}</span>}{r.email && <Typography.Text type="secondary">{r.email}</Typography.Text>}</Space> },
         { title: 'Công nợ', dataIndex: 'payment_terms_days', key: 'pt', width: 100, align: 'center', render: (v) => v > 0 ? <Tag>NET-{v}</Tag> : <Typography.Text type="secondary">Trả ngay</Typography.Text> },
         { title: 'SKU đã ghép giá', dataIndex: 'prices_count', key: 'prices_count', width: 130, align: 'center', render: (v) => <Tag color={v > 0 ? 'blue' : 'default'}>{v ?? 0}</Tag> },
@@ -58,6 +58,7 @@ export function SuppliersPage() {
                     <Input.Search allowClear placeholder="Tìm mã / tên / SĐT" prefix={<SearchOutlined />} style={{ width: 280 }} onSearch={(v) => { setQ(v); setPage(1); }} />
                 </Space>
                 <Table<Supplier> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                    scroll={{ x: 'max-content' }}
                     locale={{ emptyText: <Empty image={<ShopOutlined style={{ fontSize: 32, color: '#bfbfbf' }} />} description="Chưa có nhà cung cấp nào." /> }}
                     pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} NCC` }} />
             </Card>

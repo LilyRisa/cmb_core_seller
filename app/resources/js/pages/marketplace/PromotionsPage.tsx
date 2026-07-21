@@ -66,12 +66,13 @@ export function PromotionsPage() {
         {
             title: 'Chiến dịch',
             key: 'title',
+            width: 260,
             render: (_, r) => (
-                <Space direction="vertical" size={0}>
-                    <Typography.Text strong>{r.title}</Typography.Text>
+                <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 240 }}>
+                    <Typography.Text strong ellipsis={{ tooltip: r.title }}>{r.title}</Typography.Text>
                     <Space size={4}>
                         <ChannelLogo provider={r.provider} size={14} />
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{shopName(r.channel_account_id)}</Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: shopName(r.channel_account_id) }}>{shopName(r.channel_account_id)}</Typography.Text>
                         {r.source === 'sync' && <Tag>Từ sàn</Tag>}
                     </Space>
                 </Space>
@@ -168,6 +169,7 @@ export function PromotionsPage() {
                     loading={isFetching}
                     dataSource={promotions ?? []}
                     columns={columns}
+                    scroll={{ x: 'max-content' }}
                     locale={{ emptyText: <Empty description={tab === 'draft' ? 'Chưa có chiến dịch nháp.' : 'Chưa có chiến dịch trên sàn. Bấm “Đồng bộ từ sàn” hoặc tạo mới.'} /> }}
                     pagination={{ pageSize: 20, showSizeChanger: false }}
                 />

@@ -105,11 +105,13 @@ export function AccountingDashboardPage() {
             <Card title={<Typography.Text strong>Kết quả kinh doanh — kỳ {period?.code ?? 'hiện tại'}</Typography.Text>} style={{ marginTop: 16 }} loading={isLoading}>
                 {pl ? (
                     <Row gutter={[16, 16]}>
-                        <Col xs={12} md={8} lg={4}><Statistic title="Doanh thu thuần" value={pl.revenue} formatter={(v) => formatAmount(Number(v))} /></Col>
-                        <Col xs={12} md={8} lg={4}><Statistic title="Giá vốn" value={pl.cogs} formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#fa541c' }} /></Col>
-                        <Col xs={12} md={8} lg={4}><Statistic title="Lợi nhuận gộp" value={pl.gross_profit} formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#3f8600' }} /></Col>
-                        <Col xs={12} md={8} lg={4}><Statistic title="Chi phí QLKD" value={pl.opex} formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#fa541c' }} /></Col>
-                        <Col xs={12} md={8} lg={4}><Statistic title="Lợi nhuận sau thuế" value={pl.net_income} formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: pl.net_income >= 0 ? '#3f8600' : '#cf1322' }} /></Col>
+                        {/* lg (992-1199px, VD tablet ngang) giữ 3/hàng như md — 5/hàng chỉ ở màn thật rộng (xl≥1200)
+                            để tránh số tiền dài đè lên nhãn cột kế bên (audit tablet 2026-07-21). */}
+                        <Col xs={12} md={8} lg={8} xl={4}><Statistic title="Doanh thu thuần" value={pl.revenue} formatter={(v) => formatAmount(Number(v))} /></Col>
+                        <Col xs={12} md={8} lg={8} xl={4}><Statistic title="Giá vốn" value={pl.cogs} formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#fa541c' }} /></Col>
+                        <Col xs={12} md={8} lg={8} xl={4}><Statistic title="Lợi nhuận gộp" value={pl.gross_profit} formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#3f8600' }} /></Col>
+                        <Col xs={12} md={8} lg={8} xl={4}><Statistic title="Chi phí QLKD" value={pl.opex} formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#fa541c' }} /></Col>
+                        <Col xs={12} md={8} lg={8} xl={4}><Statistic title="Lợi nhuận sau thuế" value={pl.net_income} formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: pl.net_income >= 0 ? '#3f8600' : '#cf1322' }} /></Col>
                     </Row>
                 ) : (
                     <Typography.Text type="secondary">Chưa có dữ liệu kết quả kinh doanh cho kỳ hiện tại.</Typography.Text>

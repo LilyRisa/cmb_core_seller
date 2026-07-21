@@ -26,12 +26,15 @@ export function MessagingNav() {
     const value = options.find((o) => o.value === pathname)?.value ?? '/messaging';
 
     return (
-        <Segmented<string>
-            value={value}
-            // Cài đặt AI là tenant-global (không có platform) → không gắn query.
-            onChange={(v) => nav(v === '/settings/messaging' ? v : v + qs)}
-            options={options}
-            style={{ marginBottom: 16 }}
-        />
+        // Cuộn ngang riêng khi hẹp (tablet) thay vì để các mục cuối ("Cài đặt AI") bị bóp/cắt
+        // trong Segmented không tự xuống dòng (audit tablet 2026-07-21).
+        <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+            <Segmented<string>
+                value={value}
+                // Cài đặt AI là tenant-global (không có platform) → không gắn query.
+                onChange={(v) => nav(v === '/settings/messaging' ? v : v + qs)}
+                options={options}
+            />
+        </div>
     );
 }

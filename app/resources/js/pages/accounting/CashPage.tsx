@@ -155,7 +155,7 @@ function BankStatementsCard({ accounts, onReconcile }: { accounts: CashAccount[]
     }
 
     const columns: ColumnsType<BankStatement> = [
-        { title: 'Tài khoản', dataIndex: 'cash_account_id', render: (id: number) => { const a = acctMap.get(id); return a ? <Space size={4}><Tag style={{ marginInlineEnd: 0, fontFamily: 'ui-monospace, monospace' }}>{a.code}</Tag><Typography.Text>{a.name}</Typography.Text></Space> : `#${id}`; } },
+        { title: 'Tài khoản', dataIndex: 'cash_account_id', width: 200, render: (id: number) => { const a = acctMap.get(id); return a ? <Space size={4} style={{ minWidth: 0 }}><Tag style={{ marginInlineEnd: 0, fontFamily: 'ui-monospace, monospace' }}>{a.code}</Tag><Typography.Text ellipsis={{ tooltip: a.name }} style={{ maxWidth: 120 }}>{a.name}</Typography.Text></Space> : `#${id}`; } },
         { title: 'Kỳ sao kê', width: 220, render: (_, r) => `${dayjs(r.period_start).format('DD/MM/YYYY')} — ${dayjs(r.period_end).format('DD/MM/YYYY')}` },
         { title: 'Số dòng', dataIndex: 'lines_count', width: 90, align: 'right' },
         { title: 'Tiền vào', dataIndex: 'total_in', width: 140, align: 'right', render: (v: number) => <Typography.Text style={{ color: '#3f8600' }}>{formatAmount(v)}</Typography.Text> },
@@ -173,7 +173,7 @@ function BankStatementsCard({ accounts, onReconcile }: { accounts: CashAccount[]
                 loading={isFetching}
                 pagination={false}
                 size="middle"
-                scroll={{ x: 900 }}
+                scroll={{ x: 'max-content' }}
                 locale={{ emptyText: 'Chưa có sao kê nào — bấm "Import sao kê" ở trên để tải lên.' }}
             />
         </Card>

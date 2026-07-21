@@ -170,10 +170,12 @@ export function OverviewReportPage() {
                 <>
                     {/* KPI doanh thu & lợi nhuận */}
                     <Row gutter={16} style={{ marginBottom: 16 }}>
-                        <Col xs={12} md={6}><Card><Statistic title="Doanh thu" value={Math.round(rev?.totals.revenue ?? 0)} formatter={(v) => vnd(Number(v))} /></Card></Col>
-                        <Col xs={12} md={6}><Card><Statistic title="Đơn hàng" value={rev?.totals.orders ?? 0} /></Card></Col>
-                        <Col xs={12} md={6}><Card><Statistic title="Giá trị TB/đơn" value={Math.round(rev?.totals.avg_order_value ?? 0)} formatter={(v) => vnd(Number(v))} /></Card></Col>
-                        <Col xs={12} md={6}>
+                        {/* lg (992-1199px, VD tablet ngang) giữ 2/hàng — 4/hàng chỉ ở màn thật rộng (xl≥1200)
+                            để số tiền dài không bị xuống dòng ngay trước đơn vị "đ" (audit tablet 2026-07-21). */}
+                        <Col xs={12} md={6} lg={12} xl={6}><Card><Statistic title="Doanh thu" value={Math.round(rev?.totals.revenue ?? 0)} formatter={(v) => vnd(Number(v))} /></Card></Col>
+                        <Col xs={12} md={6} lg={12} xl={6}><Card><Statistic title="Đơn hàng" value={rev?.totals.orders ?? 0} /></Card></Col>
+                        <Col xs={12} md={6} lg={12} xl={6}><Card><Statistic title="Giá trị TB/đơn" value={Math.round(rev?.totals.avg_order_value ?? 0)} formatter={(v) => vnd(Number(v))} /></Card></Col>
+                        <Col xs={12} md={6} lg={12} xl={6}>
                             <Card>
                                 {isLocked(profitQ.error) ? (
                                     <Statistic title="Lợi nhuận ròng" valueRender={() => <Text type="secondary"><LockOutlined /> Gói cao hơn</Text>} value={0} />

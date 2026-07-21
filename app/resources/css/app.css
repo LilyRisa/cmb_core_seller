@@ -1830,6 +1830,17 @@ body > #app > .ant-app > .ant-layout,
 .ant-tabs .ant-tabs-nav::before {
     border-bottom-color: var(--ink-100) !important;
 }
+/* Nút "..." (xem tab ẩn khi tràn) — mặc định AntD quá nhạt, dễ bị hiểu nhầm là
+   chữ bị cắt/lỗi thay vì còn tab ẩn (audit tablet 2026-07-21: /orders, /accounting/reports
+   ở ≤1024px). Tăng tương phản + thêm nền khi hover để rõ là 1 nút bấm được. */
+.ant-tabs .ant-tabs-nav-more {
+    color: var(--ink-700) !important;
+    border-radius: var(--radius-sm);
+}
+.ant-tabs .ant-tabs-nav-more:hover {
+    color: var(--blue-700) !important;
+    background: var(--blue-50);
+}
 
 .ant-breadcrumb a, .ant-breadcrumb-link { color: var(--ink-500) !important; }
 .ant-breadcrumb li:last-child .ant-breadcrumb-link { color: var(--ink-900) !important; font-weight: 500; }

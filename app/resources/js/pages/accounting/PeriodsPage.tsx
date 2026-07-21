@@ -158,7 +158,7 @@ export function PeriodsPage() {
                     loading={isFetching}
                     pagination={false}
                     size="middle"
-                    scroll={{ x: 900 }}
+                    scroll={{ x: 'max-content' }}
                     locale={{ emptyText: 'Chưa có kỳ kế toán cho năm này — bấm "Tạo kỳ cho năm khác" hoặc khởi tạo TT133.' }}
                 />
             </Card>

@@ -33,11 +33,11 @@ export function CustomersPage() {
     const { data, isFetching } = useCustomers(filters);
 
     const columns: ColumnsType<Customer> = [
-        { title: 'Khách hàng', key: 'name', render: (_, c) => (
-            <Space size={8}>
+        { title: 'Khách hàng', key: 'name', width: 220, render: (_, c) => (
+            <Space size={8} style={{ minWidth: 0 }}>
                 <Avatar size={32} src={c.avatar_url || undefined} icon={<UserOutlined />} />
-                <Space direction="vertical" size={2}>
-                    <Link to={`/customers/${c.id}`} style={{ fontWeight: 600 }}>{c.name ?? 'Khách lẻ'}</Link>
+                <Space direction="vertical" size={2} style={{ minWidth: 0, maxWidth: 170 }}>
+                    <Link to={`/customers/${c.id}`} style={{ fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name ?? 'Khách lẻ'}>{c.name ?? 'Khách lẻ'}</Link>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>{c.phone ?? '—'}</Typography.Text>
                 </Space>
             </Space>
@@ -78,6 +78,7 @@ export function CustomersPage() {
                 <Table<Customer>
                     rowKey="id" size="middle" loading={isFetching}
                     dataSource={data?.data ?? []} columns={columns}
+                    scroll={{ x: 'max-content' }}
                     locale={{ emptyText: <Empty description="Chưa có khách hàng. Khách sẽ tự xuất hiện khi đơn có số điện thoại được đồng bộ về." /> }}
                     pagination={{
                         current: data?.meta.pagination.page ?? page,

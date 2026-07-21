@@ -127,7 +127,7 @@ export function OrderItemsEditor({ value = [], onChange, renderTrigger, emptySta
     };
 
     const columns: ColumnsType<OrderLineInput> = [
-        { title: 'Sản phẩm', key: 'p', render: (_, r) => (
+        { title: 'Sản phẩm', key: 'p', width: 320, render: (_, r) => (
             <Space align="start">
                 {renderImage(r)}
                 <div style={{ minWidth: 0 }}>
@@ -162,6 +162,7 @@ export function OrderItemsEditor({ value = [], onChange, renderTrigger, emptySta
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyStateLabel} />
     ) : (
         <Table<OrderLineInput> rowKey="key" size="small" pagination={false} dataSource={value} columns={columns}
+            scroll={{ x: 'max-content' }}
             summary={() => (
                 <Table.Summary.Row>
                     <Table.Summary.Cell index={0} colSpan={4}><Typography.Text type="secondary">{value.length} dòng hàng</Typography.Text></Table.Summary.Cell>

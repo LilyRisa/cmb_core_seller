@@ -33,7 +33,7 @@ export function PurchaseOrdersPage() {
 
     const columns: ColumnsType<PurchaseOrder> = [
         { title: 'Mã PO', dataIndex: 'code', key: 'code', width: 170, render: (v, r) => <a onClick={() => setDetailId(r.id)}><Typography.Text strong>{v}</Typography.Text></a> },
-        { title: 'NCC', key: 'supplier', render: (_, r) => r.supplier?.name ?? `#${r.supplier_id}` },
+        { title: 'NCC', key: 'supplier', width: 180, ellipsis: { showTitle: true }, render: (_, r) => r.supplier?.name ?? `#${r.supplier_id}` },
         { title: 'Kho nhập', key: 'wh', width: 160, render: (_, r) => r.warehouse?.name ?? `#${r.warehouse_id}` },
         { title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 150, render: (s, r) => <Tag color={STATUS_CHIP[s as PurchaseOrder['status']]?.color ?? 'default'} icon={STATUS_CHIP[s as PurchaseOrder['status']]?.icon}>{r.status_label}</Tag> },
         { title: 'Dự kiến', dataIndex: 'expected_at', key: 'expected', width: 120 },
@@ -62,6 +62,7 @@ export function PurchaseOrdersPage() {
                         ]} />
                 </Space>
                 <Table<PurchaseOrder> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                    scroll={{ x: 'max-content' }}
                     locale={{ emptyText: <Empty image={<ShoppingCartOutlined style={{ fontSize: 32, color: '#bfbfbf' }} />} description="Chưa có đơn mua nào." /> }}
                     onRow={(r) => ({ onClick: () => setDetailId(r.id), style: { cursor: 'pointer' } })}
                     pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} PO` }} />

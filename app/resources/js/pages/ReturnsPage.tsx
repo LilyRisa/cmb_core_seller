@@ -50,7 +50,7 @@ export function ReturnsPage() {
 
     const columns: ColumnsType<ReturnRecord> = [
         {
-            title: 'Đơn', key: 'order', render: (_, r) => (
+            title: 'Đơn', key: 'order', width: 160, render: (_, r) => (
                 <Space size={6}>
                     <ChannelLogo provider={r.source} size={16} />
                     <span>{r.order_number ?? r.external_order_id ?? '—'}</span>
@@ -66,7 +66,7 @@ export function ReturnsPage() {
         { title: 'Hoàn tiền', dataIndex: 'refund_amount', key: 'refund_amount', align: 'right', render: (v: number, r) => <MoneyText value={v} currency={r.currency} /> },
         { title: 'Yêu cầu lúc', dataIndex: 'requested_at', key: 'requested_at', render: (v: string | null) => <DateText value={v} /> },
         {
-            title: '', key: 'actions', align: 'right', render: (_, r) => (
+            title: '', key: 'actions', align: 'right', width: 190, render: (_, r) => (
                 canManage && r.status === 'requested' ? (
                     <Space>
                         <Popconfirm title="Duyệt yêu cầu này?" onConfirm={() => onDecide(r.id, 'approve')} okText="Duyệt" cancelText="Huỷ">
@@ -111,6 +111,7 @@ export function ReturnsPage() {
                     loading={isLoading}
                     columns={columns}
                     dataSource={data?.data ?? []}
+                    scroll={{ x: 'max-content' }}
                     locale={{ emptyText: <Empty description="Chưa có đơn hoàn/hủy" /> }}
                     pagination={{
                         current: data?.meta.pagination.page ?? 1,

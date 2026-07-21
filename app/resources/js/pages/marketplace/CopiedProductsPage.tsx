@@ -101,15 +101,19 @@ export function CopiedProductsPage() {
                     <div style={{ width: 48, height: 48, background: '#F1F5F9', borderRadius: 6 }} />
                 ),
         },
-        { title: 'Tên sản phẩm', dataIndex: 'name' },
+        { title: 'Tên sản phẩm', dataIndex: 'name', width: 320, ellipsis: { showTitle: true } },
         {
             title: 'Thương hiệu',
             dataIndex: 'brand',
+            width: 140,
+            ellipsis: { showTitle: true },
             render: (v: string | null) => v ?? <Typography.Text type="secondary">—</Typography.Text>,
         },
         {
             title: 'Ngành hàng',
             dataIndex: 'category',
+            width: 160,
+            ellipsis: { showTitle: true },
             render: (v: string | null) => v ?? <Typography.Text type="secondary">—</Typography.Text>,
         },
         {
@@ -200,6 +204,7 @@ export function CopiedProductsPage() {
                 loading={isLoading}
                 dataSource={products ?? []}
                 columns={columns}
+                scroll={{ x: 'max-content' }}
                 locale={{ emptyText: <Empty description="Chưa có sản phẩm gốc nào." /> }}
                 pagination={{ pageSize: 20, showSizeChanger: false }}
             />

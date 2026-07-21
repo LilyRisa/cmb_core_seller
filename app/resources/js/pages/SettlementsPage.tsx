@@ -53,18 +53,18 @@ export function SettlementsPage() {
     const [fetchModalOpen, setFetchModalOpen] = useState(false);
 
     const columns: ColumnsType<Settlement> = [
-        { title: 'Gian hàng', key: 'shop', render: (_, r) => (
+        { title: 'Gian hàng', key: 'shop', width: 220, render: (_, r) => (
             <Space size={8} align="center">
                 {r.channel_account?.provider && <ChannelLogo provider={r.channel_account.provider} size={22} />}
-                <Space direction="vertical" size={0}>
-                    <Typography.Text strong>{r.channel_account?.name ?? `#${r.channel_account_id}`}</Typography.Text>
+                <Space direction="vertical" size={0} style={{ minWidth: 0 }}>
+                    <Typography.Text strong ellipsis style={{ maxWidth: 170 }}>{r.channel_account?.name ?? `#${r.channel_account_id}`}</Typography.Text>
                     {r.channel_account?.provider && (
                         <Typography.Text type="secondary" style={{ fontSize: 11 }}>{CHANNEL_META[r.channel_account.provider]?.name ?? r.channel_account.provider}</Typography.Text>
                     )}
                 </Space>
             </Space>
         ) },
-        { title: 'Kỳ đối soát', key: 'period', render: (_, r) => <Space direction="vertical" size={0}><DateText value={r.period_start} />→ <DateText value={r.period_end} /></Space> },
+        { title: 'Kỳ đối soát', key: 'period', width: 150, render: (_, r) => <Space direction="vertical" size={0} style={{ whiteSpace: 'nowrap' }}><DateText value={r.period_start} />→ <DateText value={r.period_end} /></Space> },
         { title: 'Mã statement', dataIndex: 'external_id', key: 'ext', width: 180, render: (v) => v ?? <Typography.Text type="secondary">—</Typography.Text> },
         { title: 'Doanh thu', dataIndex: 'total_revenue', key: 'rev', width: 140, align: 'right', render: (v) => <MoneyText value={v} /> },
         { title: 'Phí sàn', dataIndex: 'total_fee', key: 'fee', width: 140, align: 'right', render: (v) => <Typography.Text style={{ color: v < 0 ? '#cf1322' : undefined }}><MoneyText value={Math.abs(v)} /></Typography.Text> },
@@ -106,6 +106,7 @@ export function SettlementsPage() {
                     />
                 </Space>
                 <Table<Settlement> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                    scroll={{ x: 'max-content' }}
                     locale={{ emptyText: <Empty image={<FundOutlined style={{ fontSize: 32, color: '#bfbfbf' }} />}
                         description="Chưa có kỳ đối soát nào — bấm 'Kéo đối soát từ sàn' để bắt đầu." /> }}
                     onRow={(r) => ({ onClick: () => setDetailId(r.id), style: { cursor: 'pointer' } })}
@@ -161,7 +162,7 @@ function SettlementDetailDrawer({ id, canReconcile, onClose }: { id: number | nu
         { title: 'Đơn hàng', key: 'order', render: (_, l) => l.order ? <Link to={`/orders/${l.order.id}`}><Typography.Text strong>{l.order.order_number ?? l.order.external_order_id ?? `#${l.order.id}`}</Typography.Text></Link> : (l.external_order_id ?? <Typography.Text type="secondary">—</Typography.Text>) },
         { title: 'Số tiền', dataIndex: 'amount', key: 'amount', align: 'right', width: 140, render: (v) => <Typography.Text strong style={{ color: v >= 0 ? '#389e0d' : '#cf1322' }}><MoneyText value={v} strong /></Typography.Text> },
         { title: 'Ngày', dataIndex: 'occurred_at', key: 'oc', width: 130, render: (v) => <DateText value={v} /> },
-        { title: 'Mô tả', dataIndex: 'description', key: 'd', render: (v) => v ?? '' },
+        { title: 'Mô tả', dataIndex: 'description', key: 'd', ellipsis: true, render: (v) => v ?? '' },
     ];
 
     return (
@@ -184,6 +185,7 @@ function SettlementDetailDrawer({ id, canReconcile, onClose }: { id: number | nu
                     </Space>
                     <Typography.Title level={5}>Chi tiết dòng phí ({settlement.lines_count ?? settlement.lines?.length ?? 0})</Typography.Title>
                     <Table<SettlementLine> rowKey="id" size="small" pagination={{ pageSize: 50 }} dataSource={settlement.lines ?? []} columns={lineColumns}
+                        scroll={{ x: 'max-content' }}
                         locale={{ emptyText: <Empty description="Chưa có dòng nào" /> }} />
                 </>
             )}

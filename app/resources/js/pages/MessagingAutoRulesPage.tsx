@@ -119,7 +119,7 @@ export function MessagingAutoRulesPage() {
     });
 
     const columns: ColumnsType<AutoReplyRule> = [
-        { title: 'Tên', dataIndex: 'name' },
+        { title: 'Tên', dataIndex: 'name', width: 180, ellipsis: { showTitle: true } },
         { title: 'Kích hoạt khi', dataIndex: 'trigger', width: 180, render: (t: RuleTrigger) => <Tag color="blue">{TRIGGER_LABELS[t]}</Tag> },
         { title: 'Áp dụng', width: 120, render: (_, r) => {
             const c = threadChoiceFrom(r.filter?.thread_types);
@@ -128,10 +128,10 @@ export function MessagingAutoRulesPage() {
         { title: 'Phạm vi trang', width: 200, render: (_, r) => (
             <PageScopeTags appliesAllPages={r.applies_all_pages} channelAccountIds={r.channel_account_ids} />
         ) },
-        { title: 'Nội dung', render: (_, r) => {
+        { title: 'Nội dung', width: 240, render: (_, r) => {
             if (r.action?.kind === 'ai_reply') return <Tag color="purple">AI tự soạn</Tag>;
             if (r.action?.kind === 'template') return <span style={{ color: '#64748B' }}>Mẫu nhanh</span>;
-            return <span style={{ color: '#64748B' }}>{r.action?.raw_text ?? '—'}</span>;
+            return <span style={{ color: '#64748B', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.action?.raw_text ?? undefined}>{r.action?.raw_text ?? '—'}</span>;
         } },
         { title: 'Cooldown', dataIndex: 'cooldown_seconds', width: 110, render: (v) => `${Math.round(v / 60)} phút` },
         { title: 'Bật', dataIndex: 'enabled', width: 70, render: (v) => <Tag color={v ? 'green' : 'default'}>{v ? 'Bật' : 'Tắt'}</Tag> },
@@ -152,7 +152,7 @@ export function MessagingAutoRulesPage() {
                 extra={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openForm()}>Thêm quy tắc</Button>} />
             <MessagingNav />
             <Card>
-                <Table<AutoReplyRule> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns} pagination={false} />
+                <Table<AutoReplyRule> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns} pagination={false} scroll={{ x: 'max-content' }} />
             </Card>
 
             <Modal open={open} onCancel={() => setOpen(false)} onOk={submit} confirmLoading={save.isPending}

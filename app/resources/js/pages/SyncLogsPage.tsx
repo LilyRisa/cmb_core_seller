@@ -131,7 +131,7 @@ function SyncRunsTab({ canManage }: { canManage: boolean }) {
                 <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
             </Space>
             <Table<SyncRun>
-                rowKey="id" size="middle" loading={isFetching} scroll={{ x: 1100 }}
+                rowKey="id" size="middle" loading={isFetching} scroll={{ x: 'max-content' }}
                 dataSource={data?.data ?? []} columns={columns}
                 locale={{ emptyText: <Empty description="Chưa có lần đồng bộ nào. Kết nối gian hàng để bắt đầu." /> }}
                 rowClassName={(r) => (r.status === 'failed' ? 'row-has-issue' : '')}
@@ -213,7 +213,7 @@ function WebhookEventsTab({ canManage }: { canManage: boolean }) {
                 <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
             </Space>
             <Table<WebhookEvent>
-                rowKey="id" size="middle" loading={isFetching} scroll={{ x: 1200 }}
+                rowKey="id" size="middle" loading={isFetching} scroll={{ x: 'max-content' }}
                 dataSource={data?.data ?? []} columns={columns}
                 locale={{ emptyText: <Empty description="Chưa nhận webhook nào." /> }}
                 rowClassName={(e) => (e.status === 'failed' ? 'row-has-issue' : '')}

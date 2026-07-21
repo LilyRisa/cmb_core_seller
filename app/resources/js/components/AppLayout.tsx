@@ -152,8 +152,12 @@ export function AppLayout() {
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            {/* Sider ghim theo viewport (sticky, cao 100vh); menu dài cuộn RIÊNG bên trong — không đẩy/tràn cả layout. */}
-            <Sider theme="light" width={236} collapsedWidth={64} collapsible collapsed={collapsed} trigger={null} style={{ borderRight: '1px solid #f0f0f0', height: '100vh', position: 'sticky', top: 0, overflow: 'hidden' }}>
+            {/* Sider ghim theo viewport (sticky, cao 100vh); menu dài cuộn RIÊNG bên trong — không đẩy/tràn cả layout.
+                breakpoint="lg" (< 992px, VD tablet ngang cỡ nhỏ/màn hẹp) tự thu gọn để nhường chỗ cho nội dung —
+                audit tablet 2026-07-21 ghi nhận Sider cố định chiếm quá nhiều diện tích ở màn hẹp. */}
+            <Sider theme="light" width={236} collapsedWidth={64} collapsible collapsed={collapsed} trigger={null}
+                breakpoint="lg" onBreakpoint={(broken) => setCollapsed(broken)}
+                style={{ borderRight: '1px solid #f0f0f0', height: '100vh', position: 'sticky', top: 0, overflow: 'hidden' }}>
                 <div style={{ height: 56, flex: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: collapsed ? '0' : '0 18px', justifyContent: collapsed ? 'center' : 'flex-start', fontWeight: 600, fontSize: 16, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                     <img src="/images/logocmb.png" alt="CMB Core" style={{ width: 32, height: 32, objectFit: 'contain', flex: 'none' }} />
                     {!collapsed && <span>CMB Core</span>}
