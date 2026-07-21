@@ -36,6 +36,27 @@
 
     <link rel="icon" type="image/png" href="/images/logocmb.png">
     <link rel="apple-touch-icon" href="/images/logocmb.png">
+    @php($fbPixelId = system_setting('growth.facebook.enabled', false) ? system_setting('growth.facebook.pixel_id') : null)
+    @if($fbPixelId)
+        {{-- Meta Pixel base code (SPEC 2026-07-22) — chỉ nhúng khi admin đã bật + cấu hình
+             Pixel ID ở /admin/settings (tab "Tăng trưởng"). Set cookie _fbp/_fbc dùng chung
+             cho Conversions API (xem lib/acquisition.ts readFacebookCookies). --}}
+        <script>
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '{{ $fbPixelId }}');
+        fbq('track', 'PageView');
+        </script>
+        <noscript><img height="1" width="1" style="display:none"
+          src="https://www.facebook.com/tr?id={{ $fbPixelId }}&ev=PageView&noscript=1"
+        /></noscript>
+    @endif
     @vite(['resources/js/app.tsx'])
 </head>
 <body>
