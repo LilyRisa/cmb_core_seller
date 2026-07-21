@@ -33,6 +33,7 @@ class AdminTenantAcquisitionFilterTest extends TestCase
 
         $this->actingAs($admin, 'admin_web')->getJson('/api/v1/admin/tenants')
             ->assertOk()
+            ->assertJsonStructure(['data' => [['acquisition']]])
             ->assertJsonPath('data.0.acquisition', null);
     }
 }
