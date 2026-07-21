@@ -2,7 +2,7 @@
 // (tab "Hỏi CSKH" phía user) xuyên tenant (SPEC-0028).
 
 import { useMemo, useRef, useState } from 'react';
-import { App, Button, Card, Drawer, Input, Segmented, Space, Spin, Table, Tag, Typography } from 'antd';
+import { App, Button, Card, Drawer, Empty, Input, Radio, Space, Spin, Table, Tag, Typography } from 'antd';
 import {
     CheckCircleFilled, CloseOutlined, CustomerServiceOutlined, PaperClipOutlined,
     ReloadOutlined, SendOutlined,
@@ -210,11 +210,19 @@ export function AdminSupportRequestsPage() {
         >
             <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }} wrap>
                 <Space wrap>
-                    <Segmented options={FILTERS} value={status} onChange={(v) => { setStatus(v as string); setPage(1); }} />
-                    <Segmented
+                    <Radio.Group
+                        options={FILTERS}
+                        optionType="button"
+                        buttonStyle="solid"
+                        value={status}
+                        onChange={(e) => { setStatus(e.target.value as string); setPage(1); }}
+                    />
+                    <Radio.Group
                         options={[{ value: 'all', label: 'Tất cả' }, { value: 'awaiting', label: 'Chờ CSKH trả lời' }]}
+                        optionType="button"
+                        buttonStyle="solid"
                         value={awaiting ? 'awaiting' : 'all'}
-                        onChange={(v) => { setAwaiting(v === 'awaiting'); setPage(1); }}
+                        onChange={(e) => { setAwaiting(e.target.value === 'awaiting'); setPage(1); }}
                     />
                 </Space>
                 <Input.Search
@@ -237,6 +245,7 @@ export function AdminSupportRequestsPage() {
                     current: page, pageSize: 50, total: data?.meta.pagination.total ?? 0,
                     showSizeChanger: false, onChange: setPage,
                 }}
+                locale={{ emptyText: <Empty description="Chưa có hội thoại CSKH nào khớp bộ lọc." /> }}
             />
 
             <ThreadDrawer id={activeId} onClose={() => setActiveId(null)} />
