@@ -8,7 +8,7 @@ import {
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
 import { errorMessage } from '@/lib/api';
-import { type Conversation, type Message, useCommentLinkedDm, useConversationThread, useSendCommentPrivateMessage } from '@/lib/messaging';
+import { type Conversation, type Message, useCommentLinkedDm, useConversationThread, useRenderBody, useSendCommentPrivateMessage } from '@/lib/messaging';
 import type { MessageTemplate } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
@@ -97,6 +97,7 @@ export function CommentPrivateMessageModal({ open, onClose, conversation, commen
     const pendingKindRef = useRef<Kind>('image');
 
     const send = useSendCommentPrivateMessage(conversation.id);
+    const resolveBody = useRenderBody(conversation.id);
 
     // Hội thoại DM đã liên kết với người bình luận này (nếu từng nhắn riêng) → nạp lịch
     // sử tin nhắn trước đó vào modal. Ưu tiên DM vừa tạo trong phiên (dmId), rồi tới DM
@@ -162,7 +163,18 @@ export function CommentPrivateMessageModal({ open, onClose, conversation, commen
 
     const handleSend = async () => {
         if (!canSend) return;
-        const body = text.trim();
+        let body = text.trim();
+        // Resolve biến `{{...}}` (mẫu tin chèn thô) → giá trị thật NGAY TRƯỚC khi gửi,
+        // như MessageComposer — khách không được thấy token thô. Lỗi resolve ⇒ vẫn gửi
+        // body thô (hiếm) hơn là kẹt không gửi được.
+        if (/\{\{/.test(body)) {
+            try {
+                const r = await resolveBody.mutateAsync(body);
+                body = r.text;
+            } catch {
+                // giữ nguyên body thô
+            }
+        }
         const files = pending.map((p) => p.file);
         try {
             const { delivered, total, dmConversationId } = await send.mutateAsync({ body, commentId, files });
