@@ -41,4 +41,25 @@ class AdminAiProviderTestDraftTest extends TestCase
             'api_key' => 'sk-test',
         ])->assertStatus(422);
     }
+
+    /**
+     * SafeProviderUrl chống SSRF — cùng rule đã áp cho store()/update(), nay áp cho testDraft()
+     * vì endpoint này cũng gửi request thật ra base_url do admin nhập (169.254.169.254 = cloud
+     * metadata endpoint, mục tiêu SSRF kinh điển).
+     */
+    public function test_draft_test_rejects_unsafe_base_url(): void
+    {
+        $this->actingAs(AdminUser::factory()->create(), 'admin_web');
+
+        Http::fake();
+
+        $this->postJson('/api/v1/admin/ai-providers/test-draft', [
+            'adapter' => 'openai_compatible',
+            'base_url' => 'http://169.254.169.254',
+            'api_key' => 'sk-test',
+            'default_model' => 'x',
+        ])->assertStatus(422);
+
+        Http::assertNothingSent();
+    }
 }

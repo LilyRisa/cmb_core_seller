@@ -212,7 +212,7 @@ class AdminAiProviderController extends Controller
     {
         $data = $request->validate([
             'adapter' => ['required', 'string', Rule::in(['anthropic', 'openai_compatible'])],
-            'base_url' => ['nullable', 'string', 'max:255'],
+            'base_url' => ['nullable', 'string', 'max:255', new SafeProviderUrl],
             'api_key' => ['nullable', 'string', 'max:512'],
             'default_model' => ['nullable', 'string', 'max:64'],
         ]);
