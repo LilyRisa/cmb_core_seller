@@ -87,6 +87,15 @@ class AdminSystemSettingController extends Controller
         }
         $value = $request->input('value');
 
+        // Global middleware `ConvertEmptyStringsToNull` biến "" (FE gửi khi admin xoá trắng ô
+        // rồi bấm Lưu) thành null trước khi tới đây ⇒ validate() luôn coi null là sai kiểu (vd
+        // 'string'), 422 dù admin chỉ muốn xoá override. Coi null == "xoá row, quay về .env".
+        if ($value === null) {
+            $this->svc->forget($key);
+
+            return response()->json(['data' => ['key' => $key, 'updated_at' => null]]);
+        }
+
         if (! SystemSettingsCatalog::validate($key, $value)) {
             return response()->json(['error' => [
                 'code' => 'SETTING_VALUE_INVALID',

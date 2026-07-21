@@ -96,6 +96,22 @@ class SystemSettingApiTest extends TestCase
             ->assertJsonPath('error.code', 'SETTING_KEY_NOT_ALLOWED');
     }
 
+    public function test_patch_with_empty_string_clears_override_instead_of_422(): void
+    {
+        // Laravel's global ConvertEmptyStringsToNull middleware turns {"value":""} (FE gửi khi
+        // admin xoá trắng ô rồi bấm Lưu) thành null trước khi tới controller — trước fix,
+        // validate() coi null là sai kiểu 'string' ⇒ 422, khiến admin không xoá được override
+        // (vd growth.facebook.test_event_code kẹt giá trị test trên prod).
+        $this->bootstrap();
+        app(SystemSettingService::class)->set('growth.facebook.test_event_code', 'TEST123');
+
+        $this->patchJson('/api/v1/admin/system-settings/growth.facebook.test_event_code', ['value' => ''])
+            ->assertOk();
+
+        $this->assertNull(SystemSetting::query()->where('key', 'growth.facebook.test_event_code')->first());
+        $this->assertNull(system_setting('growth.facebook.test_event_code'));
+    }
+
     public function test_delete_returns_fallback_to_env(): void
     {
         $this->bootstrap();
