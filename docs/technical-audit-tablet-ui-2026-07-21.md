@@ -76,3 +76,27 @@ Phạm vi: `app.cmbcore.com`, viewport 1280×800 / 1024×768 / 900×600 (chỉ n
 **Ảnh chụp:** `orders-1280x800.png`, `orders-1024x768.png`, `orders-900x600.png`, `orders-new-1024x768.png`, `orders-new-900x600.png`, `order-detail-1280x800.png`, `order-detail-1024x768.png`, `returns-1024x768.png`.
 
 ---
+
+## Khách hàng, Gian hàng, Sản phẩm {#khách-hàng-gian-hàng-sản-phẩm}
+
+### `/customers` — Danh sách khách hàng
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| 1280×800 VÀ 1024×768 | Medium (không phải lỗi responsive) | Cột "KHÁCH HÀNG" bị bẻ ký tự dọc thành ~20 dòng, 1 dòng bảng chiếm hết chiều cao viewport — xảy ra **giống hệt nhau ở cả 1280 lẫn 1024**, tức đây KHÔNG phải lỗi do màn hẹp mà là lỗi thiếu `ellipsis`/xử lý chuỗi dài không khoảng trắng ở cột tên khách hàng (dữ liệu thật: tên khách nối liền không dấu cách kiểu "KelangbatCodon0923..."). Vẫn đáng sửa vì ảnh hưởng UX nghiêm trọng, nhưng cần phân loại đúng là lỗi robustness chung, không phải lỗi "chỉ lộ ở tablet". |
+
+### `/channels` — Gian hàng
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| 1024×768 | OK | Layout dạng card (không phải Table), hiển thị đầy đủ, không tràn/vỡ. |
+
+### `/products` → redirect `/inventory?tab=skus` — Sản phẩm & SKU
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| **1024×768** | **High** | Bảng danh mục SKU bị cắt cột "THỰC C(òn)..." ngay giữa chữ ở mép phải, còn nhiều cột nữa bên phải không thấy được. Xác nhận qua DOM: `.ant-table-content` có `overflow-x: visible` và `scrollWidth` (1034px) vượt `clientWidth` (702px) tới 332px — **đúng cùng 1 nguyên nhân gốc với lỗi ở `/returns`**: Table không cấu hình `scroll={{ x: ... }}`, nên phần tràn không có scrollbar riêng, chỉ có thể thấy bằng cách cuộn ngang CẢ TRANG (kéo theo mất sidebar, xem mục Khung layout chung). |
+
+**Ảnh chụp:** `customers-1024x768.png`, `customers-1280x800.png`, `channels-1024x768.png`, `products-1024x768.png`.
+
+---
