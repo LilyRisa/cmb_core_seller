@@ -43,6 +43,27 @@ class AdminGrowthAttributionTest extends TestCase
         // Không có utm — nhóm "Không xác định", chưa lên gói.
         Tenant::create(['name' => 'Direct Shop']);
 
+        // Chỉ có subscription active non-trial, KHÔNG có invoice paid — vẫn phải tính "paid"
+        // (chứng minh union OR, không phải intersection AND, giữa 2 tín hiệu).
+        $subOnlyTenant = Tenant::create(['name' => 'Sub Only Shop']);
+        $subOnlyTenant->forceFill(['acquisition' => ['utm_source' => 'subscription_only']])->save();
+        Subscription::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $subOnlyTenant->id, 'plan_id' => $plan->id, 'status' => Subscription::STATUS_ACTIVE,
+            'billing_cycle' => Subscription::CYCLE_MONTHLY,
+            'current_period_start' => now(), 'current_period_end' => now()->addMonth(),
+        ]);
+
+        // Chỉ có invoice paid, KHÔNG có subscription nào — vẫn phải tính "paid".
+        $invoiceOnlyTenant = Tenant::create(['name' => 'Invoice Only Shop']);
+        $invoiceOnlyTenant->forceFill(['acquisition' => ['utm_source' => 'invoice_only']])->save();
+        Invoice::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $invoiceOnlyTenant->id, 'subscription_id' => 0, 'code' => 'INV-ONLY-1',
+            'status' => Invoice::STATUS_PAID, 'period_start' => now()->format('Y-m-d'),
+            'period_end' => now()->addMonth()->format('Y-m-d'),
+            'subtotal' => 190_000, 'tax' => 0, 'total' => 190_000, 'currency' => 'VND',
+            'due_at' => now(), 'paid_at' => now(),
+        ]);
+
         $response = $this->actingAs($admin, 'admin_web')->getJson('/api/v1/admin/growth/attribution');
 
         $response->assertOk();
@@ -53,5 +74,9 @@ class AdminGrowthAttributionTest extends TestCase
         $this->assertSame(190_000, $rows['facebook']['revenue_vnd']);
         $this->assertSame(1, $rows['Không xác định']['signups']);
         $this->assertSame(0, $rows['Không xác định']['paid']);
+        $this->assertSame(1, $rows['subscription_only']['signups']);
+        $this->assertSame(1, $rows['subscription_only']['paid']);
+        $this->assertSame(1, $rows['invoice_only']['signups']);
+        $this->assertSame(1, $rows['invoice_only']['paid']);
     }
 }
