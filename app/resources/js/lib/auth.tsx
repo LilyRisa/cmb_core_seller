@@ -77,6 +77,8 @@ export function useRegister() {
             password_confirmation: string;
             tenant_name?: string;
             captcha_token?: string;
+            event_id?: string;
+            acquisition?: Record<string, string | undefined>;
         }) => {
             await ensureCsrf();
             const { data } = await api.post<{ data: AuthUser }>('/auth/register', vars);

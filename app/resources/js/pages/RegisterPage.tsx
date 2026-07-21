@@ -16,6 +16,7 @@ import { errorMessage } from '@/lib/api';
 import { AuthBackdrop } from '@/components/AuthBackdrop';
 import { Captcha, useCaptchaConfig } from '@/lib/captcha';
 import { captureExtRedirect } from '@/lib/extRedirect';
+import { readAcquisition, readFacebookCookies, clearAcquisition } from '@/lib/acquisition';
 
 export function RegisterPage() {
     const register = useRegister();
@@ -75,7 +76,22 @@ export function RegisterPage() {
                     <Form
                         layout="vertical"
                         requiredMark={false}
-                        onFinish={(v) => register.mutate({ ...v, captcha_token: captchaToken }, { onSuccess: () => navigate('/dashboard') })}
+                        onFinish={(v) => {
+                            const eventId = crypto.randomUUID();
+                            const acquisition = { ...readAcquisition(), ...readFacebookCookies() };
+                            register.mutate(
+                                { ...v, captcha_token: captchaToken, event_id: eventId, acquisition },
+                                {
+                                    onSuccess: () => {
+                                        if (typeof window.fbq === 'function') {
+                                            window.fbq('track', 'CompleteRegistration', {}, { eventID: eventId });
+                                        }
+                                        clearAcquisition();
+                                        navigate('/dashboard');
+                                    },
+                                },
+                            );
+                        }}
                     >
                         <Form.Item
                             name="name"
