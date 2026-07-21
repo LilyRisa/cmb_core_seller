@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { App, Button, Card, Form, Input, Radio, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { SendOutlined, NotificationOutlined } from '@ant-design/icons';
@@ -9,7 +10,8 @@ import { errorMessage } from '@/lib/api';
 
 export function AdminBroadcastsPage() {
     const { message } = App.useApp();
-    const { data, isFetching } = useAdminBroadcasts();
+    const [page, setPage] = useState(1);
+    const { data, isFetching } = useAdminBroadcasts({ page });
     const create = useAdminCreateBroadcast();
     const [form] = Form.useForm();
 
@@ -93,7 +95,13 @@ export function AdminBroadcastsPage() {
                     columns={columns}
                     dataSource={data?.data ?? []}
                     loading={isFetching}
-                    pagination={{ pageSize: 30, total: data?.meta.pagination.total ?? 0, showSizeChanger: false }}
+                    pagination={{
+                        current: page,
+                        pageSize: data?.meta.pagination.per_page ?? 30,
+                        total: data?.meta.pagination.total ?? 0,
+                        showSizeChanger: false,
+                        onChange: setPage,
+                    }}
                 />
             </Card>
         </>
