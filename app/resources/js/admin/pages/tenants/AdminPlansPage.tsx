@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { App, Button, Card, DatePicker, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, Typography } from 'antd';
+import { App, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Space, Switch, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { EditOutlined } from '@ant-design/icons';
@@ -101,7 +101,7 @@ export function AdminPlansPage() {
             <Card>
                 <Table rowKey="id" columns={columns} dataSource={data ?? []} loading={isLoading} pagination={false} />
             </Card>
-            <PlanModal
+            <PlanDrawer
                 open={editing != null}
                 plan={editing}
                 onClose={() => setEditing(null)}
@@ -178,12 +178,12 @@ function valuesFromPlan(plan: AdminPlan) {
     };
 }
 
-function PlanModal({ open, plan, onClose }: { open: boolean; plan: AdminPlan | null; onClose: () => void }) {
+function PlanDrawer({ open, plan, onClose }: { open: boolean; plan: AdminPlan | null; onClose: () => void }) {
     const { message } = App.useApp();
     const update = useAdminUpdatePlan();
     const [form] = Form.useForm();
 
-    // `form` (từ useForm) tồn tại xuyên suốt giữa các lần mở modal, nên `initialValues`
+    // `form` (từ useForm) tồn tại xuyên suốt giữa các lần mở drawer, nên `initialValues`
     // chỉ áp 1 lần → không cập nhật theo plan mới chọn. Chủ động nạp lại mỗi khi mở.
     useEffect(() => {
         if (open && plan) {
@@ -217,54 +217,51 @@ function PlanModal({ open, plan, onClose }: { open: boolean; plan: AdminPlan | n
     };
 
     return (
-        <Modal
+        <Drawer
             title={`Sửa gói: ${plan.code}`}
             open={open}
-            onCancel={onClose}
-            onOk={() => form.submit()}
-            okText="Lưu"
-            cancelText="Huỷ"
-            confirmLoading={update.isPending}
-            destroyOnClose
+            onClose={onClose}
             width={620}
+            destroyOnHidden
         >
-            {open && (
-                <Form form={form} layout="vertical" initialValues={initialValues} onFinish={submit}>
-                    <Form.Item name="name" label="Tên hiển thị" rules={[{ required: true }]}>
-                        <Input />
-                    </Form.Item>
-                    <Form.Item name="description" label="Mô tả">
-                        <Input.TextArea rows={2} />
-                    </Form.Item>
+            <Form form={form} layout="vertical" initialValues={initialValues} onFinish={submit}>
+                <Form.Item name="name" label="Tên hiển thị" rules={[{ required: true }]}>
+                    <Input />
+                </Form.Item>
+                <Form.Item name="description" label="Mô tả">
+                    <Input.TextArea rows={2} />
+                </Form.Item>
+                <Space wrap>
+                    <Form.Item name="price_monthly" label="Giá tháng (VND)"><InputNumber style={{ width: 150 }} min={0} /></Form.Item>
+                    <Form.Item name="price_yearly" label="Giá năm (VND)"><InputNumber style={{ width: 150 }} min={0} /></Form.Item>
+                    <Form.Item name="trial_days" label="Trial (ngày)"><InputNumber style={{ width: 100 }} min={0} max={365} /></Form.Item>
+                    <Form.Item name="sort_order" label="Thứ tự"><InputNumber style={{ width: 90 }} min={0} /></Form.Item>
+                </Space>
+                <Typography.Text type="secondary">Hạn mức — đặt <b>-1</b> để không giới hạn. "Gian hàng / nền tảng" áp cho <b>từng</b> nền tảng: TikTok, Shopee, Lazada và Facebook Page (vd 2 = tối đa 2 gian hàng mỗi nền tảng).</Typography.Text>
+                <Space wrap style={{ marginTop: 8 }}>
+                    <Form.Item name="max_channel_accounts" label="Số gian hàng (tổng)"><InputNumber style={{ width: 140 }} min={-1} /></Form.Item>
+                    <Form.Item name="max_channel_accounts_per_platform" label="Gian hàng / nền tảng"><InputNumber style={{ width: 150 }} min={-1} /></Form.Item>
+                    <Form.Item name="ai_credits_monthly" label="Lượt AI tặng / kỳ"><InputNumber style={{ width: 140 }} min={-1} /></Form.Item>
+                    <Form.Item name="messaging_ai_replies_monthly" label="AI reply / tháng"><InputNumber style={{ width: 140 }} min={-1} /></Form.Item>
+                    <Form.Item name="messaging_media_mb_daily" label="Media MB / ngày"><InputNumber style={{ width: 140 }} min={-1} /></Form.Item>
+                </Space>
+                <Form.Item name="is_active" label="Đang bán?" valuePropName="checked">
+                    <Switch />
+                </Form.Item>
+                <Form.Item label="Tính năng nâng cao">
                     <Space wrap>
-                        <Form.Item name="price_monthly" label="Giá tháng (VND)"><InputNumber style={{ width: 150 }} min={0} /></Form.Item>
-                        <Form.Item name="price_yearly" label="Giá năm (VND)"><InputNumber style={{ width: 150 }} min={0} /></Form.Item>
-                        <Form.Item name="trial_days" label="Trial (ngày)"><InputNumber style={{ width: 100 }} min={0} max={365} /></Form.Item>
-                        <Form.Item name="sort_order" label="Thứ tự"><InputNumber style={{ width: 90 }} min={0} /></Form.Item>
+                        {KNOWN_FEATURES.map((k) => (
+                            <Form.Item key={k} name={['features', k]} valuePropName="checked" noStyle>
+                                <FeatureToggle name={k} />
+                            </Form.Item>
+                        ))}
                     </Space>
-                    <Typography.Text type="secondary">Hạn mức — đặt <b>-1</b> để không giới hạn. "Gian hàng / nền tảng" áp cho <b>từng</b> nền tảng: TikTok, Shopee, Lazada và Facebook Page (vd 2 = tối đa 2 gian hàng mỗi nền tảng).</Typography.Text>
-                    <Space wrap style={{ marginTop: 8 }}>
-                        <Form.Item name="max_channel_accounts" label="Số gian hàng (tổng)"><InputNumber style={{ width: 140 }} min={-1} /></Form.Item>
-                        <Form.Item name="max_channel_accounts_per_platform" label="Gian hàng / nền tảng"><InputNumber style={{ width: 150 }} min={-1} /></Form.Item>
-                        <Form.Item name="ai_credits_monthly" label="Lượt AI tặng / kỳ"><InputNumber style={{ width: 140 }} min={-1} /></Form.Item>
-                        <Form.Item name="messaging_ai_replies_monthly" label="AI reply / tháng"><InputNumber style={{ width: 140 }} min={-1} /></Form.Item>
-                        <Form.Item name="messaging_media_mb_daily" label="Media MB / ngày"><InputNumber style={{ width: 140 }} min={-1} /></Form.Item>
-                    </Space>
-                    <Form.Item name="is_active" label="Đang bán?" valuePropName="checked">
-                        <Switch />
-                    </Form.Item>
-                    <Form.Item label="Tính năng nâng cao">
-                        <Space wrap>
-                            {KNOWN_FEATURES.map((k) => (
-                                <Form.Item key={k} name={['features', k]} valuePropName="checked" noStyle>
-                                    <FeatureToggle name={k} />
-                                </Form.Item>
-                            ))}
-                        </Space>
-                    </Form.Item>
-                </Form>
-            )}
-        </Modal>
+                </Form.Item>
+                <Form.Item>
+                    <Button type="primary" htmlType="submit" loading={update.isPending}>Lưu</Button>
+                </Form.Item>
+            </Form>
+        </Drawer>
     );
 }
 
