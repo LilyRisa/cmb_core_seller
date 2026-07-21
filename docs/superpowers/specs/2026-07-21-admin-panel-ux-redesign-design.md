@@ -158,7 +158,13 @@ disabled until a live connectivity test succeeds) to `AdminAiProvidersPage`,
 ### 5.5 Filters, search, empty/loading states
 
 - Status filters: standardize on `Radio.Group` (buttons), replacing `Segmented` usage in
-  `AdminInvoicesPage`, `AdminSupportRequestsPage`, `SystemSettingsPage`.
+  `AdminInvoicesPage` (done Phase 2a) and `AdminSupportRequestsPage` (done Phase 2d).
+  **Correction (found during Phase 2d's final review, 2026-07-21):** the original text here also
+  named `SystemSettingsPage` — that was a miscategorization. Its `Segmented` (branding/marketplace/
+  AI settings-group switcher) is a **tab switcher**, not a status filter — it doesn't select a
+  data-filtering criterion, it navigates between distinct settings sections. `Segmented` is the
+  right widget for that job; converting it to `Radio.Group` would not serve this rule's actual
+  intent. Deliberately kept as `Segmented`, no phase should touch it for this reason.
 - Search: standardize on `Input.Search`.
 - `AdminAuditLogsPage`'s free-text action filter gets an autocomplete/`Select` sourced from known
   audit action codes instead of expecting the admin to type dot-namespaced strings from memory.
