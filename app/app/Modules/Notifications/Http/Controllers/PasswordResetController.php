@@ -25,10 +25,13 @@ class PasswordResetController extends Controller
         $data = $request->validate([
             'email' => ['required', 'email'],
         ]);
+        // Chuẩn hoá lowercase để khớp User::email đã lưu lowercase — không thì gõ khác hoa/thường
+        // lúc "quên mật khẩu" sẽ không bao giờ tìm ra user (dù response vẫn generic nên im lặng).
+        $email = mb_strtolower(trim($data['email']));
 
         // Password::sendResetLink trả status; lỗi (email không tồn tại, throttle...)
         // ta KHÔNG lộ ra — phản hồi luôn generic để chống enumerate (OWASP).
-        Password::broker()->sendResetLink(['email' => $data['email']]);
+        Password::broker()->sendResetLink(['email' => $email]);
 
         return response()->json(['data' => ['sent' => true]]);
     }
@@ -41,6 +44,8 @@ class PasswordResetController extends Controller
             // Policy đồng bộ với /auth/register: ≥8 ký tự, có chữ hoa + chữ thường + chữ số + ký tự đặc biệt.
             'password' => ['required', 'confirmed', PasswordRule::min(8)->mixedCase()->numbers()->symbols()],
         ]);
+        // Phải chuẩn hoá GIỐNG HỆT bước forgot() ở trên để broker tìm đúng user/token.
+        $data['email'] = mb_strtolower(trim($data['email']));
 
         $status = Password::broker()->reset(
             $data,

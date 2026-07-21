@@ -79,6 +79,9 @@ class AdminUserController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $u = User::query()->findOrFail($id);
+        if ($request->filled('email')) {
+            $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
+        }
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:120'],
             'email' => ['sometimes', 'nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($u->id)],

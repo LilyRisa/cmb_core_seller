@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Tenancy\Models\TenantUser;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -59,6 +60,17 @@ class User extends Authenticatable implements CanResetPassword, MustVerifyEmail
             'suspended_at' => 'datetime',
             'is_sub_account' => 'boolean',
         ];
+    }
+
+    /**
+     * Đăng nhập/đăng ký không phân biệt hoa-thường: chuẩn hoá email về lowercase ngay khi
+     * set (mọi đường ghi — create/fill/forceFill đều qua đây), để so khớp bằng ('=') là đủ.
+     */
+    protected function email(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value) => $value !== null ? mb_strtolower(trim($value)) : null,
+        );
     }
 
     /** Tenants this user is a member of. */

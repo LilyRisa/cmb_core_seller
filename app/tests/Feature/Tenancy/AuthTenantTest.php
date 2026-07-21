@@ -43,6 +43,15 @@ class AuthTenantTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_register_rejects_duplicate_email_differing_only_by_case(): void
+    {
+        User::factory()->create(['email' => 'dup@example.com']);
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'X', 'email' => 'DUP@Example.com', 'password' => 'Str0ng!Pass', 'password_confirmation' => 'Str0ng!Pass',
+        ])->assertStatus(422);
+    }
+
     public function test_register_requires_strong_password(): void
     {
         // Thiếu ký tự đặc biệt.
@@ -99,6 +108,15 @@ class AuthTenantTest extends TestCase
         $this->postJson('/api/v1/auth/login', ['email' => 'b@example.com', 'password' => 'wrong'])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'INVALID_CREDENTIALS');
+    }
+
+    public function test_login_is_case_insensitive_on_email(): void
+    {
+        User::factory()->create(['email' => 'b@example.com', 'password' => Hash::make('secret123')]);
+
+        $this->postJson('/api/v1/auth/login', ['email' => 'B@Example.COM', 'password' => 'secret123'])
+            ->assertOk()
+            ->assertJsonPath('data.email', 'b@example.com');
     }
 
     public function test_me_requires_authentication(): void

@@ -29,6 +29,11 @@ class AuthController extends Controller
 
     public function register(Request $request): JsonResponse
     {
+        // Chuẩn hoá TRƯỚC validate để rule `unique` so khớp đúng với dữ liệu đã lowercase trong DB
+        // (User::email mutator) — tránh lọt trùng email chỉ khác hoa/thường rồi vỡ unique constraint.
+        if ($request->filled('email')) {
+            $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
+        }
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email', new NotDisposableEmail],
@@ -132,6 +137,9 @@ class AuthController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+        if ($request->filled('email')) {
+            $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
+        }
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'email', 'max:255', 'unique:users,email,'.$user->getKey()],

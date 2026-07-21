@@ -14,7 +14,9 @@ trait ResolvesLoginIdentifier
 {
     protected function resolveLoginUser(string $login): ?User
     {
-        $login = trim($login);
+        // Username sinh tự động luôn lowercase (uniqueUsername), email lưu lowercase (User::email
+        // mutator) — chuẩn hoá input về lowercase để đăng nhập không phân biệt hoa/thường.
+        $login = mb_strtolower(trim($login));
         if ($login === '') {
             return null;
         }

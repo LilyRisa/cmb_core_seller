@@ -148,7 +148,7 @@ class MemberController extends Controller
         ]);
         $roleId = $this->ensureAssignableRole((int) $data['role_id'], $tenant);
 
-        $user = User::query()->where('email', $data['email'])->first();
+        $user = User::query()->where('email', mb_strtolower(trim($data['email'])))->first();
         if (! $user) {
             return response()->json(['error' => [
                 'code' => 'USER_NOT_FOUND',

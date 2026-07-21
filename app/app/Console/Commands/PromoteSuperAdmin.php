@@ -23,7 +23,7 @@ class PromoteSuperAdmin extends Command
 
     public function handle(): int
     {
-        $email = (string) $this->argument('email');
+        $email = mb_strtolower(trim((string) $this->argument('email')));
         $user = User::query()->where('email', $email)->first();
         if (! $user) {
             $this->error("Không tìm thấy user với email [{$email}].");
