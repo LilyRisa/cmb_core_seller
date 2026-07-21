@@ -19,6 +19,7 @@ use Illuminate\Support\Str;
  * @property string|null $code 5-char [a-z0-9] shop code (SPEC 0031)
  * @property string $status
  * @property array<string,mixed>|null $settings
+ * @property array<string,mixed>|null $acquisition UTM/fbclid/fbp/fbc lúc đăng ký (first-touch, bất biến)
  */
 class Tenant extends Model
 {
@@ -34,6 +35,7 @@ class Tenant extends Model
 
     protected $casts = [
         'settings' => 'array',
+        'acquisition' => 'array',
     ];
 
     protected static function booted(): void
