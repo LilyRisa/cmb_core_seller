@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
+import type { Key } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Input, Radio, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { Button, Card, Input, Radio, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CheckCircleOutlined, ExclamationCircleOutlined, LockOutlined, SearchOutlined, WarningOutlined } from '@ant-design/icons';
+import {
+    CheckCircleOutlined, ExclamationCircleOutlined, LockOutlined, SearchOutlined, SendOutlined, WarningOutlined,
+} from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { useAdminTenants, type AdminTenantSummary } from '@admin/lib/admin';
 import { formatDate, formatDateShort } from '@/lib/format';
@@ -15,11 +18,18 @@ const KIND_OPTIONS: Array<{ value: FilterKind; label: string }> = [
     { value: 'suspended', label: 'Đang tạm khoá' },
 ];
 
+// Tổng chiều rộng cột thực tế cho scroll={{x}}: 48 (checkbox) + 240 (Gian hàng) + 220
+// (Chủ sở hữu) + 150 (Xác minh email) + 180 (Gói) + 180 (Gian hàng đã kết nối) + 160 (Trạng thái)
+// = 1178, làm tròn lên 1180 cho phần đệm border/padding của ô.
+const TABLE_SCROLL_X = 1180;
+
 export function AdminTenantsPage() {
     const navigate = useNavigate();
     const [q, setQ] = useState('');
     const [kind, setKind] = useState<FilterKind>('all');
     const [page, setPage] = useState(1);
+    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
+    const [selectedRows, setSelectedRows] = useState<AdminTenantSummary[]>([]);
 
     const filters = useMemo(() => ({
         q: q.trim() || undefined,
@@ -32,7 +42,7 @@ export function AdminTenantsPage() {
 
     const columns: ColumnsType<AdminTenantSummary> = [
         {
-            title: 'Gian hàng', dataIndex: 'name', key: 'name',
+            title: 'Gian hàng', dataIndex: 'name', key: 'name', width: 240,
             render: (_v, r) => (
                 <Space direction="vertical" size={0}>
                     <Typography.Text strong>{r.name}</Typography.Text>
@@ -43,7 +53,7 @@ export function AdminTenantsPage() {
             ),
         },
         {
-            title: 'Chủ sở hữu', dataIndex: ['owner', 'email'], key: 'owner',
+            title: 'Chủ sở hữu', dataIndex: ['owner', 'email'], key: 'owner', width: 220,
             render: (_v, r) => r.owner ? (
                 <Space direction="vertical" size={0}>
                     <Typography.Text>{r.owner.name}</Typography.Text>
@@ -126,12 +136,30 @@ export function AdminTenantsPage() {
                         options={KIND_OPTIONS} />
                 </Space>
 
+                <Space size={12} wrap style={{ marginBottom: 12 }}>
+                    <Button
+                        icon={<SendOutlined />}
+                        disabled={selectedRows.length === 0}
+                        onClick={() => navigate('/admin/broadcasts', { state: { presetTenants: selectedRows } })}
+                    >
+                        {selectedRows.length > 0
+                            ? `Gửi broadcast cho ${selectedRows.length} tenant đã chọn`
+                            : 'Gửi broadcast cho tenant đã chọn'}
+                    </Button>
+                </Space>
+
                 <Table<AdminTenantSummary>
                     rowKey="id"
                     columns={columns}
                     dataSource={data?.data ?? []}
                     loading={isLoading || isFetching}
                     onRow={(r) => ({ onClick: () => navigate(`/admin/tenants/${r.id}`), style: { cursor: 'pointer' } })}
+                    rowSelection={{
+                        selectedRowKeys,
+                        columnWidth: 48,
+                        onChange: (keys, rows) => { setSelectedRowKeys(keys); setSelectedRows(rows); },
+                    }}
+                    scroll={{ x: TABLE_SCROLL_X }}
                     pagination={{
                         current: data?.meta.pagination.page ?? 1,
                         pageSize: data?.meta.pagination.per_page ?? 30,
