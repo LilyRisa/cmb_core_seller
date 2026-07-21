@@ -1,6 +1,14 @@
 // /admin/ai-providers — super-admin thêm/sửa/bật-tắt/test nhà cung cấp AI.
 // Adapter động: anthropic | openai_compatible | manual. Nhiều instance cùng adapter
 // (DeepSeek/Qwen/OpenRouter/Gemini đều openai_compatible, khác base_url/key/model).
+//
+// api_key dùng chung SecretInput (hiển thị plaintext, "Đặt giá trị" để đổi — xem
+// docs/superpowers/specs/2026-07-21-admin-panel-ux-redesign-design.md §5.3), thay Input
+// hand-rolled trước đây. "Lưu" trong modal khoá tới khi Test kết nối PASS với đúng
+// (adapter, base_url, model, api_key) đang có trên form — chỉ áp dụng adapter
+// anthropic/openai_compatible (shape request/response cố định); custom_http (template
+// tự định nghĩa) và manual (stub) không có shape cố định để test "nháp" ⇒ giữ hành vi
+// Lưu ngay như trước (§5.4).
 
 import { useState } from 'react';
 import { App, Button, Card, Form, Input, InputNumber, Modal, Radio, Select, Space, Switch, Table, Tag } from 'antd';
@@ -8,8 +16,10 @@ import { ApiOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from '
 import { errorMessage } from '@/lib/api';
 import {
     useAiProviders, useCreateAiProvider, useUpdateAiProvider, useDisableAiProvider, useTestAiProvider,
+    useTestAiProviderDraft,
     type AiProviderRow, type AiAdapter, type AiRole, type AiPreset, type CustomHttpConfig,
 } from '../../lib/aiProviders';
+import { SecretInput } from '../../components/SecretInput';
 
 const ADAPTER_LABEL: Record<AiAdapter, string> = {
     anthropic: 'Anthropic (Claude)',
@@ -28,12 +38,16 @@ const ROLE_LABEL: Record<AiRole, string> = {
 // không lệch với adapter đã đăng ký ⇒ không chọn được adapter mà BE từ chối (422).
 const ADAPTERS_FALLBACK: AiAdapter[] = ['anthropic', 'openai_compatible', 'custom_http', 'manual'];
 
+// Chỉ 2 adapter có request/response shape CỐ ĐỊNH mới test "nháp" (chưa lưu) được.
+const PROBEABLE_ADAPTERS: AiAdapter[] = ['anthropic', 'openai_compatible'];
+
 export function AdminAiProvidersPage() {
     const { data, isLoading, refetch } = useAiProviders();
     const create = useCreateAiProvider();
     const update = useUpdateAiProvider();
     const disable = useDisableAiProvider();
     const test = useTestAiProvider();
+    const testDraft = useTestAiProviderDraft();
     const { message, modal } = App.useApp();
     const [form] = Form.useForm();
     const [editing, setEditing] = useState<AiProviderRow | null>(null);
@@ -41,6 +55,16 @@ export function AdminAiProvidersPage() {
     // Code provider ĐANG test — để CHỈ nút của dòng đó quay spinner (test.isPending
     // dùng chung mọi dòng ⇒ trước đây bấm 1 provider thì tất cả nút Test đều loading).
     const [testingCode, setTestingCode] = useState<string | null>(null);
+    // api_key nằm NGOÀI Form (SecretInput không phát onChange theo keystroke chuẩn của
+    // AntD Form) — track riêng, merge vào payload lúc submit.
+    const [apiKeyDraft, setApiKeyDraft] = useState<string | null>(null);
+    // Chữ ký (adapter|base_url|default_model|api_key) đã Test PASS gần nhất — đổi field
+    // nào trong 4 field này cũng buộc test lại trước khi Lưu được mở khoá.
+    const [verifiedSignature, setVerifiedSignature] = useState<string | null>(null);
+
+    const watchedAdapter = Form.useWatch('adapter', form) as AiAdapter | undefined;
+    const watchedBaseUrl = Form.useWatch('base_url', form) as string | undefined;
+    const watchedModel = Form.useWatch('default_model', form) as string | undefined;
 
     const adapters = data?.adapters ?? [];
     const presetsFor = (a: AiAdapter): AiPreset[] => adapters.find((x) => x.adapter === a)?.presets ?? [];
@@ -48,28 +72,59 @@ export function AdminAiProvidersPage() {
     // tránh chọn adapter không tồn tại khiến tạo provider bị 422.
     const adapterChoices: AiAdapter[] = adapters.length ? adapters.map((x) => x.adapter) : ADAPTERS_FALLBACK;
 
+    const currentAdapter = (editing?.adapter ?? watchedAdapter) as AiAdapter | undefined;
+    const probeSupported = !!currentAdapter && PROBEABLE_ADAPTERS.includes(currentAdapter);
+    const currentSignature = JSON.stringify({
+        adapter: currentAdapter ?? '',
+        base_url: watchedBaseUrl ?? '',
+        default_model: watchedModel ?? '',
+        api_key: apiKeyDraft ?? '',
+    });
+    const needsTest = probeSupported && currentSignature !== verifiedSignature;
+
     const openCreate = () => {
         setEditing(null);
         form.resetFields();
         form.setFieldsValue({ adapter: 'openai_compatible', role: 'chat', is_active: true, sort_order: 0 });
+        setApiKeyDraft(null);
+        setVerifiedSignature(null);
         setOpen(true);
     };
     const openEdit = (row: AiProviderRow) => {
         setEditing(row);
         form.setFieldsValue({
             ...row,
-            api_key: row.api_key ?? '',   // trang admin: hiển thị thẳng key hiện có để xem/sửa
             headers_json: row.adapter_config?.headers ? JSON.stringify(row.adapter_config.headers, null, 2) : '',
         });
+        setApiKeyDraft(row.api_key ?? null);
+        setVerifiedSignature(null);
         setOpen(true);
     };
 
     const applyPreset = (p: AiPreset) =>
         form.setFieldsValue({ base_url: p.base_url ?? '', default_model: p.default_model ?? '', display_name: p.name });
 
+    const runDraftTest = async () => {
+        if (!currentAdapter) return;
+        const r = await testDraft.mutateAsync({
+            adapter: currentAdapter,
+            base_url: watchedBaseUrl ?? null,
+            api_key: apiKeyDraft,
+            default_model: watchedModel ?? null,
+        });
+        if (r.ok) {
+            message.success(r.message ?? 'Kết nối OK.');
+            setVerifiedSignature(currentSignature);
+        } else {
+            message.error(r.message ?? 'Kết nối thất bại.');
+        }
+    };
+
     const submit = async () => {
         const v = await form.validateFields();
         const onErr = (e: unknown) => message.error(errorMessage(e));
+
+        v.api_key = apiKeyDraft;
 
         // adapter_config chỉ áp dụng cho custom_http; headers nhập dạng JSON text → parse.
         const headersJson = v.headers_json as string | undefined;
@@ -174,6 +229,7 @@ export function AdminAiProvidersPage() {
                 onCancel={() => setOpen(false)}
                 onOk={submit}
                 confirmLoading={create.isPending || update.isPending}
+                okButtonProps={{ disabled: needsTest }}
                 destroyOnClose
             >
                 <Form form={form} layout="vertical">
@@ -256,10 +312,25 @@ export function AdminAiProvidersPage() {
                             );
                         }}
                     </Form.Item>
-                    {/* Trang admin: hiện thẳng key (Input thường) để xem/sửa, không che. */}
-                    <Form.Item name="api_key" label="API key" extra={editing ? 'Key hiện tại đang hiển thị — sửa rồi lưu để đổi; để trống = giữ nguyên.' : undefined}>
-                        <Input placeholder="sk-..." autoComplete="off" />
+
+                    {/* Trang admin: hiện thẳng key qua SecretInput dùng chung toàn hệ thống
+                        (không che — spec §5.3); nằm ngoài Form vì SecretInput tự quản draft. */}
+                    <Form.Item label="API key">
+                        <SecretInput value={apiKeyDraft} onSave={(v) => setApiKeyDraft(v)} />
                     </Form.Item>
+
+                    {probeSupported && (
+                        <Form.Item label="Xác minh kết nối">
+                            <Space>
+                                <Button icon={<ThunderboltOutlined />} loading={testDraft.isPending} onClick={runDraftTest}>
+                                    Test kết nối
+                                </Button>
+                                {currentSignature === verifiedSignature
+                                    ? <Tag color="green">Đã xác minh</Tag>
+                                    : <Tag color="orange">Chưa xác minh — Lưu bị khoá tới khi Test pass</Tag>}
+                            </Space>
+                        </Form.Item>
+                    )}
 
                     {/* Cấu hình riêng adapter custom_http (SPEC-0026). */}
                     <Form.Item shouldUpdate={(p, c) => p.adapter !== c.adapter} noStyle>

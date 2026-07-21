@@ -117,3 +117,24 @@ export function useTestAiProvider() {
             (await api.post<{ data: AiProviderTestResult }>(`/admin/ai-providers/${encodeURIComponent(code)}/test`)).data.data,
     });
 }
+
+export interface AiProviderDraftTestResult {
+    ok: boolean;
+    message?: string;
+}
+
+export interface AiProviderDraftTestPayload {
+    adapter: AiAdapter;
+    base_url: string | null;
+    api_key: string | null;
+    default_model: string | null;
+}
+
+/** Test kết nối bằng credentials ĐANG NHẬP trên form (chưa lưu) — chỉ hỗ trợ adapter
+ * anthropic/openai_compatible (custom_http/manual không gate, xem AdminAiProvidersPage). */
+export function useTestAiProviderDraft() {
+    return useMutation({
+        mutationFn: async (payload: AiProviderDraftTestPayload) =>
+            (await api.post<{ data: AiProviderDraftTestResult }>('/admin/ai-providers/test-draft', payload)).data.data,
+    });
+}
