@@ -74,4 +74,31 @@ class AiUsageReportService implements AiUsageReporter
             'by_feature' => $byFeature,
         ];
     }
+
+    public function topTenantsByUsageThisMonth(int $limit): array
+    {
+        $ym = (int) now()->format('Ym');
+        $rows = AiUsageCounter::withoutGlobalScope(TenantScope::class)
+            ->selectRaw('tenant_id, SUM(count) as calls_this_month')
+            ->where('period_ym', $ym)
+            ->groupBy('tenant_id')
+            ->orderByDesc('calls_this_month')
+            ->limit($limit)
+            ->toBase()
+            ->get();
+
+        return $rows->map(fn ($r) => [
+            'tenant_id' => (int) $r->tenant_id,
+            'calls_this_month' => (int) $r->calls_this_month,
+        ])->all();
+    }
+
+    public function totalCallsThisMonth(): int
+    {
+        $ym = (int) now()->format('Ym');
+
+        return (int) AiUsageCounter::withoutGlobalScope(TenantScope::class)
+            ->where('period_ym', $ym)
+            ->sum('count');
+    }
 }

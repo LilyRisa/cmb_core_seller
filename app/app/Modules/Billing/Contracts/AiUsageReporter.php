@@ -29,4 +29,14 @@ interface AiUsageReporter
      * @return array{all_time:int, by_month:list<array{period_ym:int,count:int}>, by_feature:list<array{feature:string,count:int}>}
      */
     public function breakdownForTenant(int $tenantId): array;
+
+    /**
+     * Top N tenant theo lượt gọi AI tháng hiện tại (nhiều→ít). Dùng cho dashboard admin.
+     *
+     * @return list<array{tenant_id:int, calls_this_month:int}>
+     */
+    public function topTenantsByUsageThisMonth(int $limit): array;
+
+    /** Tổng lượt gọi AI toàn hệ thống (mọi tenant) tháng hiện tại. Dùng cho dashboard admin. */
+    public function totalCallsThisMonth(): int;
 }

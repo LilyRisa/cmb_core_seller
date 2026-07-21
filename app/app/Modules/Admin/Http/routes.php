@@ -5,6 +5,7 @@ use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAnnouncementController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuditLogController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminBroadcastController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminDashboardController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminDesktopBackgroundController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminNotificationEmailController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminPlanController;
@@ -70,6 +71,10 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
             ->whereNumber('tid')->name('admin.tenants.suspend');
         Route::post('tenants/{tid}/reactivate', [AdminTenantController::class, 'reactivate'])
             ->whereNumber('tid')->name('admin.tenants.reactivate');
+
+        // --- Dashboard overview (redesign 2026-07-21) ---
+        Route::get('dashboard/overview', [AdminDashboardController::class, 'overview'])
+            ->name('admin.dashboard.overview');
 
         // --- Tenant operations (SPEC 0023) ---
         Route::post('tenants/{tid}/extend-trial', [AdminTenantController::class, 'extendTrial'])
