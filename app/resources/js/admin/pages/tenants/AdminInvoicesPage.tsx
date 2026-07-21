@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Card, DatePicker, Drawer, Input, Segmented, Space, Table, Tag, Typography } from 'antd';
+import { Card, DatePicker, Drawer, Empty, Input, Radio, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -76,7 +76,13 @@ export function AdminInvoicesPage() {
             <PageHeader title="Lịch sử thanh toán" subtitle="Hóa đơn xuyên mọi shop, gồm cả yêu cầu đã mở nhưng chưa hoàn thành (Chờ)." />
             <Card>
                 <Space style={{ marginBottom: 12 }} wrap>
-                    <Segmented options={STATUS_OPTIONS} value={status} onChange={(v) => { setStatus(v as string); setPage(1); }} />
+                    <Radio.Group
+                        options={STATUS_OPTIONS}
+                        optionType="button"
+                        buttonStyle="solid"
+                        value={status}
+                        onChange={(e) => { setStatus(e.target.value as string); setPage(1); }}
+                    />
                     <TenantPicker value={tenantId} onChange={(v) => { setTenantId(v); setPage(1); }} placeholder="Tenant (mã/tên/email)" style={{ width: 220 }} />
                     <Input.Search placeholder="Tìm mã hóa đơn" value={q} onChange={(e) => setQ(e.target.value)} onSearch={() => setPage(1)} style={{ width: 220 }} allowClear />
                     <RangePicker showTime onChange={(v) => { setRange(v as [dayjs.Dayjs, dayjs.Dayjs] | null); setPage(1); }} />
@@ -88,6 +94,7 @@ export function AdminInvoicesPage() {
                     columns={columns}
                     dataSource={data?.data ?? []}
                     pagination={{ current: page, pageSize: 20, total: data?.meta.pagination.total ?? 0, showSizeChanger: false, onChange: setPage }}
+                    locale={{ emptyText: <Empty description="Không có hoá đơn nào khớp bộ lọc." /> }}
                 />
             </Card>
 
