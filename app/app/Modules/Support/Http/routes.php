@@ -1,5 +1,6 @@
 <?php
 
+use CMBcoreSeller\Modules\Support\Http\Controllers\AdminAiSupportController;
 use CMBcoreSeller\Modules\Support\Http\Controllers\AdminSupportConversationController;
 use CMBcoreSeller\Modules\Support\Http\Controllers\HelpAssistantController;
 use CMBcoreSeller\Modules\Support\Http\Controllers\SupportConversationController;
@@ -39,4 +40,11 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
             ->whereNumber('id')->name('admin.support-conversations.message');
         Route::post('{id}/close', [AdminSupportConversationController::class, 'close'])
             ->whereNumber('id')->name('admin.support-conversations.close');
+    });
+
+// --- Admin: test kết nối "nháp" cho form AI Trợ giúp (gate nút Lưu, SPEC §5.4) --------
+Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
+    ->prefix('api/v1/admin/ai-support')->group(function () {
+        Route::post('test-draft', [AdminAiSupportController::class, 'testDraft'])
+            ->name('admin.ai-support.test-draft');
     });
