@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { ChannelLogo } from '@/components/ChannelLogo';
 import { CHANNEL_META, formatDate, formatDateShort, formatDateTimeSeconds } from '@/lib/format';
 import { errorMessage } from '@/lib/api';
+import { useReasonConfirm } from '@admin/components/ReasonConfirmModal';
 import {
     useAdminChangePlan, useAdminDeleteChannel, useAdminPlans, useAdminReactivateTenant, useAdminSuspendTenant,
     useAdminTenant, useAdminTenantAiCreditAdjust, useAdminTenantAuditLogs, useAdminTenantDailyOrderStats,
@@ -71,6 +72,7 @@ const PLAN_OPTIONS: Array<{ value: string; label: string }> = [
 
 function OverviewTab({ t }: { t: AdminTenantDetail }) {
     const { message, modal } = App.useApp();
+    const confirmWithReason = useReasonConfirm();
     const suspend = useAdminSuspendTenant();
     const reactivate = useAdminReactivateTenant();
     const change = useAdminChangePlan();
@@ -80,34 +82,23 @@ function OverviewTab({ t }: { t: AdminTenantDetail }) {
     const [planOpen, setPlanOpen] = useState(false);
     const [planCode, setPlanCode] = useState<string>(t.subscription?.plan_code ?? 'starter');
     const [cycle, setCycle] = useState<'monthly' | 'yearly' | 'trial'>('monthly');
-    const [reason, setReason] = useState('');
+    const [planForm] = Form.useForm<{ reason: string }>();
 
     const onSuspend = () => {
-        let suspendReason = '';
-        modal.confirm({
+        confirmWithReason({
             title: 'Tạm khoá gian hàng',
-            content: (
-                <Form layout="vertical" style={{ marginTop: 12 }}>
-                    <Form.Item label="Lý do (≥10 ký tự)">
-                        <Input.TextArea rows={3} onChange={(e) => { suspendReason = e.target.value; }} />
-                    </Form.Item>
-                </Form>
-            ),
-            okText: 'Tạm khoá', okType: 'danger', cancelText: 'Huỷ',
-            onOk: async () => {
-                if (suspendReason.trim().length < 10) {
-                    message.error('Lý do phải có tối thiểu 10 ký tự.');
-                    throw new Error('reason too short');
-                }
-                try {
-                    await suspend.mutateAsync({ tenantId: t.id, reason: suspendReason.trim() });
-                    message.success('Đã tạm khoá tenant.');
-                } catch (e) { message.error(errorMessage(e)); throw e; }
+            danger: true,
+            okText: 'Tạm khoá',
+            onConfirm: async (reason) => {
+                await suspend.mutateAsync({ tenantId: t.id, reason });
+                message.success('Đã tạm khoá tenant.');
             },
         });
     };
 
     const onReactivate = () => {
+        // Mở lại KHÔNG cần lý do — AdminTenantService::reactivate() không nhận reason (khác
+        // suspend/changePlan), khớp tier "standard" cho hành động khôi phục quyền truy cập.
         modal.confirm({
             title: 'Mở lại tenant?',
             content: 'Tenant sẽ trở lại trạng thái hoạt động bình thường.',
@@ -121,15 +112,23 @@ function OverviewTab({ t }: { t: AdminTenantDetail }) {
         });
     };
 
+    const openPlanModal = () => {
+        planForm.resetFields();
+        setPlanOpen(true);
+    };
+
     const submitPlan = async () => {
-        if (reason.trim().length < 10) {
-            message.error('Lý do phải có tối thiểu 10 ký tự.');
-            return;
+        let values: { reason: string };
+        try {
+            values = await planForm.validateFields();
+        } catch {
+            return; // Lỗi hiển thị ngay dưới field "Lý do" — không cần toast riêng.
         }
         try {
-            await change.mutateAsync({ tenantId: t.id, plan_code: planCode, cycle, reason: reason.trim() });
+            await change.mutateAsync({ tenantId: t.id, plan_code: planCode, cycle, reason: values.reason.trim() });
             message.success('Đã đổi gói cho tenant.');
-            setPlanOpen(false); setReason('');
+            setPlanOpen(false);
+            planForm.resetFields();
         } catch (e) { message.error(errorMessage(e)); }
     };
 
@@ -185,14 +184,14 @@ function OverviewTab({ t }: { t: AdminTenantDetail }) {
             ) : <Empty description="Chưa có subscription" />}
 
             <div style={{ marginTop: 16 }}>
-                <Button type="primary" icon={<SwapOutlined />} onClick={() => setPlanOpen(true)}>Đổi gói</Button>
+                <Button type="primary" icon={<SwapOutlined />} onClick={openPlanModal}>Đổi gói</Button>
             </div>
 
             <Modal
-                open={planOpen} onCancel={() => setPlanOpen(false)} title="Đổi gói cho tenant"
+                open={planOpen} onCancel={() => { setPlanOpen(false); planForm.resetFields(); }} title="Đổi gói cho tenant"
                 okText="Xác nhận đổi" cancelText="Huỷ" onOk={submitPlan} confirmLoading={change.isPending}
             >
-                <Form layout="vertical">
+                <Form form={planForm} layout="vertical">
                     <Form.Item label="Gói">
                         <Radio.Group value={planCode} onChange={(e) => setPlanCode(e.target.value)} optionType="button" buttonStyle="solid"
                             options={planOptions.length ? planOptions : PLAN_OPTIONS} />
@@ -205,9 +204,12 @@ function OverviewTab({ t }: { t: AdminTenantDetail }) {
                                 { value: 'trial', label: 'Trial' },
                             ]} />
                     </Form.Item>
-                    <Form.Item label="Lý do (≥10 ký tự)" required>
-                        <Input.TextArea rows={3} value={reason} onChange={(e) => setReason(e.target.value)}
-                            placeholder="vd: Khách yêu cầu hạ gói về Starter. Ticket #1234." />
+                    <Form.Item
+                        name="reason"
+                        label="Lý do (≥10 ký tự)"
+                        rules={[{ required: true, min: 10, message: 'Lý do phải có tối thiểu 10 ký tự.' }]}
+                    >
+                        <Input.TextArea rows={3} placeholder="vd: Khách yêu cầu hạ gói về Starter. Ticket #1234." />
                     </Form.Item>
                     <Typography.Paragraph type="warning" style={{ fontSize: 12 }}>
                         Đổi gói tay không tạo hoá đơn. Subscription cũ ⇒ cancelled, subscription mới ⇒ active từ
@@ -223,36 +225,19 @@ function OverviewTab({ t }: { t: AdminTenantDetail }) {
 
 function ChannelsTab({ tenantId, accounts }: { tenantId: number; accounts: AdminChannelAccount[] }) {
     const del = useAdminDeleteChannel();
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
+    const confirmWithReason = useReasonConfirm();
 
     const onDelete = (acc: AdminChannelAccount) => {
-        let reason = '';
-        modal.confirm({
+        confirmWithReason({
             title: <Space><WarningOutlined style={{ color: '#cf1322' }} /> Xoá kết nối «{acc.name}»?</Space>,
-            content: (
-                <div>
-                    <Typography.Paragraph type="warning" style={{ marginBottom: 8 }}>
-                        Hành động này KHÔNG hoàn tác: xoá kết nối + xoá đơn của gian hàng + huỷ liên kết SKU.
-                        Tồn đã giữ chỗ sẽ được nhả.
-                    </Typography.Paragraph>
-                    <Form layout="vertical" style={{ marginTop: 12 }}>
-                        <Form.Item label="Lý do (≥10 ký tự — sẽ ghi audit log)">
-                            <Input.TextArea rows={3} onChange={(e) => { reason = e.target.value; }}
-                                placeholder="vd: Khách yêu cầu gỡ kênh sau khi hạ gói về Starter." />
-                        </Form.Item>
-                    </Form>
-                </div>
-            ),
-            okText: 'Xoá kết nối', okType: 'danger', cancelText: 'Huỷ',
-            onOk: async () => {
-                if (reason.trim().length < 10) {
-                    message.error('Lý do phải có tối thiểu 10 ký tự.');
-                    throw new Error('reason too short');
-                }
-                try {
-                    const r = await del.mutateAsync({ tenantId, channelAccountId: acc.id, reason: reason.trim() });
-                    message.success(`Đã xoá kết nối: ${r.deleted_orders} đơn + ${r.unlinked_skus} liên kết SKU.`);
-                } catch (e) { message.error(errorMessage(e)); throw e; }
+            danger: true,
+            okText: 'Xoá kết nối',
+            warningText: 'Hành động này KHÔNG hoàn tác: xoá kết nối + xoá đơn của gian hàng + huỷ liên kết SKU. Tồn đã giữ chỗ sẽ được nhả.',
+            reasonPlaceholder: 'vd: Khách yêu cầu gỡ kênh sau khi hạ gói về Starter.',
+            onConfirm: async (reason) => {
+                const r = await del.mutateAsync({ tenantId, channelAccountId: acc.id, reason });
+                message.success(`Đã xoá kết nối: ${r.deleted_orders} đơn + ${r.unlinked_skus} liên kết SKU.`);
             },
         });
     };
@@ -350,9 +335,9 @@ function MembersTab({ members }: { members: AdminMember[] }) {
 
 function AiCreditTab({ tenantId, t }: { tenantId: number; t: AdminTenantDetail }) {
     const adjust = useAdminTenantAiCreditAdjust();
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
+    const confirmWithReason = useReasonConfirm();
     const [amount, setAmount] = useState<number | null>(null);
-    const [reason, setReason] = useState('');
 
     const c = t.ai_credit;
 
@@ -361,22 +346,14 @@ function AiCreditTab({ tenantId, t }: { tenantId: number; t: AdminTenantDetail }
             message.error('Số lượng phải khác 0.');
             return;
         }
-        if (reason.trim().length < 10) {
-            message.error('Lý do phải có tối thiểu 10 ký tự.');
-            return;
-        }
         const amt = amount;
-        const trimmedReason = reason.trim();
-        modal.confirm({
+        confirmWithReason({
             title: amt > 0 ? `Cộng ${amt} lượt AI cho tenant?` : `Trừ ${Math.abs(amt)} lượt AI của tenant?`,
-            content: `Lý do: ${trimmedReason}`,
-            okText: 'Xác nhận', cancelText: 'Huỷ',
-            onOk: async () => {
-                try {
-                    await adjust.mutateAsync({ tenantId, amount: amt, reason: trimmedReason });
-                    message.success('Đã cập nhật hạn mức AI.');
-                    setAmount(null); setReason('');
-                } catch (e) { message.error(errorMessage(e)); throw e; }
+            okText: 'Xác nhận',
+            onConfirm: async (reason) => {
+                await adjust.mutateAsync({ tenantId, amount: amt, reason });
+                message.success('Đã cập nhật hạn mức AI.');
+                setAmount(null);
             },
         });
     };
@@ -395,8 +372,6 @@ function AiCreditTab({ tenantId, t }: { tenantId: number; t: AdminTenantDetail }
             <Typography.Title level={5}>Cộng / trừ hạn mức tay</Typography.Title>
             <Space align="start" style={{ marginBottom: 24 }} wrap>
                 <InputNumber value={amount} onChange={(v) => setAmount(v)} placeholder="vd: 100 hoặc -50" style={{ width: 160 }} />
-                <Input.TextArea rows={2} value={reason} onChange={(e) => setReason(e.target.value)}
-                    placeholder="Lý do (≥10 ký tự)" style={{ width: 360 }} />
                 <Button type="primary" onClick={onApply} loading={adjust.isPending}>Áp dụng</Button>
             </Space>
 
