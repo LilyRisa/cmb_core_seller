@@ -41,4 +41,38 @@ Phạm vi: `app.cmbcore.com`, viewport 1280×800 / 1024×768 / 900×600 (chỉ n
 
 **Ảnh chụp:** `dashboard-1280x800.png`, `dashboard-1024x768.png`, `dashboard-900x600.png`, `dashboard-900x600-scrolled.png` (thư mục `.playwright-mcp`/`tablet-audit` cục bộ, không commit).
 
+**Ghi chú phương pháp:** từ mục này trở đi, do lỗi khung layout ở trên áp dụng cho MỌI trang, các trang sau chỉ audit trọng tâm ở 1024×768 (tablet ngang chuẩn) và chỉ chụp thêm 1280×800/900×600 khi phát hiện khác biệt đáng chú ý — thay vì lặp lại đủ 3 viewport × mọi trang.
+
+## Đơn hàng & Hoàn hủy {#đơn-hàng--hoàn-hủy}
+
+### `/orders?tab=pending` — Danh sách đơn hàng
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| 1280×800 | Low | Thanh nút hành động (Chuẩn bị hàng/Nhận phiếu/In phiếu/Sẵn sàng bàn giao/Liên kết SKU/Hủy đơn) đã wrap 2 hàng ngay ở 1280 — hơi sớm nhưng vẫn đọc được, không chồng lấn. |
+| 1024×768 | Medium | Thanh tab trạng thái đơn ("Tất cả/Chờ xử lý/Đang xử lý/Chờ bàn giao/Đang giao/Đã giao") bị AntD tự cắt bớt, chữ "Đang giao" hiển thị cụt thành "Đang g" ngay cạnh nút "..." (xem thêm) — nút "..." có tồn tại và hoạt động (xác nhận qua DOM: `.ant-tabs-nav-more` tồn tại, `display:block`) nhưng độ tương phản quá thấp, dễ bị hiểu nhầm là chữ bị lỗi/cắt hỏng thay vì "còn tab ẩn, bấm vào xem". |
+| 900×600 | Low | Tương tự nhưng nút "..." rõ hơn do có nhiều khoảng trắng quanh; ô "Tuỳ chỉnh từ → đến" (bộ lọc ngày) bị cắt bớt phần "đến" sát mép phải. |
+
+### `/orders/new` — Tạo đơn thủ công
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| 1024×768 | OK | Bố cục 3 cột (Sản phẩm / Thông tin / Thanh toán+Ghi chú+Khách hàng) vẫn giữ được, chỉ tiêu đề panel "Khách hàng" bị cắt thành "Khách ..." — cosmetic. |
+| 900×600 | Low | Tự xếp lại 1 cột dọc hợp lý, không vỡ. Nút "Lưu" ở thanh dưới cùng bị cắt phím tắt (hiện "F" thay vì đầy đủ) — cosmetic. |
+
+### `/orders/:id` — Chi tiết đơn (test đơn `23119`)
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| 1280×800 | OK | Bảng sản phẩm hiển thị tên SP wrap 2 dòng bình thường, tỉ lệ cột hợp lý. |
+| **1024×768** | **High** | **Cột "SẢN PHẨM" trong bảng bị bóp quá hẹp** so với 3 cột còn lại (ĐƠN GIÁ/SL/THÀNH TIỀN) — tên sản phẩm dài ("WEAH-3003 Mạch phân tần 3 đường tiếng bass treble mid công suất 250W...") bị bẻ dòng từng 1-2 từ/dòng, kéo dài thành ~17 dòng dù bên phải bảng còn thừa khoảng trắng ngang rõ rệt. Bảng rõ ràng không dùng tỉ lệ cột linh hoạt theo độ rộng khả dụng — chỉ xảy ra khi màn thu hẹp xuống ~1024px (1280px vẫn ổn), đúng loại lỗi "chỉ lộ ra ở tablet" mà audit này nhắm tới. |
+
+### `/returns` — Đơn Hoàn & Hủy
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| **1024×768** | **High** | Cột "ĐƠN" (mã đơn) bị bóp hẹp, mã đơn dài bị bẻ dòng từng cụm 5-6 ký tự (giống lỗi ở trang chi tiết đơn). Nghiêm trọng hơn: **nút hành động thứ 2 cạnh nút "Duyệt" (khả năng là "Từ chối") bị tràn ra ngoài biên card trắng**, chỉ còn thấy 1 viền mảnh sát mép phải card — xác nhận qua DOM: `.ant-table-content` có `scrollWidth` (789px) > `clientWidth` (702px) và `overflow-x: visible` (không phải `hidden`/`auto`) → nội dung tràn ra ngoài khung một cách "vô hình", không có scrollbar hay dấu hiệu nào cho biết còn nút bị che. Người dùng khả năng không thao tác được nút này ở độ rộng này. |
+
+**Ảnh chụp:** `orders-1280x800.png`, `orders-1024x768.png`, `orders-900x600.png`, `orders-new-1024x768.png`, `orders-new-900x600.png`, `order-detail-1280x800.png`, `order-detail-1024x768.png`, `returns-1024x768.png`.
+
 ---
