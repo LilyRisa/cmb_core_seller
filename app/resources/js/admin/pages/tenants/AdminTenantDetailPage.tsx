@@ -349,6 +349,7 @@ function AiCreditTab({ tenantId, t }: { tenantId: number; t: AdminTenantDetail }
         const amt = amount;
         confirmWithReason({
             title: amt > 0 ? `Cộng ${amt} lượt AI cho tenant?` : `Trừ ${Math.abs(amt)} lượt AI của tenant?`,
+            danger: amt < 0,
             okText: 'Xác nhận',
             onConfirm: async (reason) => {
                 await adjust.mutateAsync({ tenantId, amount: amt, reason });
