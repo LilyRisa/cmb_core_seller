@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
+use CMBcoreSeller\Integrations\Ai\CredentialProbe;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\ConversationSnapshot;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
@@ -200,6 +201,28 @@ class AdminAiProviderController extends Controller
             'message' => $primary['message'] ?? null,
             'results' => $results,
         ]]);
+    }
+
+    /**
+     * Test kết nối bằng credentials ĐANG NHẬP trên form (chưa lưu) — gate nút "Lưu" ở modal
+     * tạo/sửa provider (spec 2026-07-21 §5.4). Chỉ hỗ trợ adapter anthropic/openai_compatible
+     * (xem CredentialProbe); custom_http/manual không gate, FE tự bỏ qua nút Test cho 2 loại đó.
+     */
+    public function testDraft(Request $request, CredentialProbe $probe): JsonResponse
+    {
+        $data = $request->validate([
+            'adapter' => ['required', 'string', Rule::in(['anthropic', 'openai_compatible'])],
+            'base_url' => ['nullable', 'string', 'max:255'],
+            'api_key' => ['nullable', 'string', 'max:512'],
+            'default_model' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        return response()->json(['data' => $probe->probeChat(
+            $data['adapter'],
+            $data['base_url'] ?? null,
+            $data['api_key'] ?? null,
+            $data['default_model'] ?? null,
+        )]);
     }
 
     /**

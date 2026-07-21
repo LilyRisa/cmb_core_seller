@@ -268,6 +268,8 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
             ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.ai-providers.destroy');
         Route::post('{code}/test', [AdminAiProviderController::class, 'test'])
             ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.ai-providers.test');
+        Route::post('test-draft', [AdminAiProviderController::class, 'testDraft'])
+            ->name('admin.ai-providers.test-draft');
     });
 
 /*
