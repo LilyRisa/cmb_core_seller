@@ -49,6 +49,32 @@ class FacebookCapiReporterTest extends TestCase
         $this->assertNotEmpty($tenant->fresh()->acquisition['capi_reported_at'] ?? null);
     }
 
+    /**
+     * `lib/acquisition.ts` giờ luôn lưu URL tuyệt đối, nhưng test này bảo đảm lớp BE cũng tự vá
+     * (belt-and-suspenders) nếu `landing_page` lỡ là pathname tương đối — vd bundle FE cũ trong
+     * lúc rolling deploy. Meta CAPI từ chối `event_source_url` không phải http(s):// tuyệt đối.
+     */
+    public function test_absolutizes_relative_landing_page_for_event_source_url(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['events_received' => 1], 200)]);
+        app(SystemSettingService::class)->set('growth.facebook.enabled', true);
+        app(SystemSettingService::class)->set('growth.facebook.pixel_id', 'PIXEL_1');
+        app(SystemSettingService::class)->set('growth.facebook.capi_access_token', 'TOKEN_1');
+
+        $tenant = $this->makeTenant([
+            'event_id' => 'evt-3', 'landing_page' => '/pricing',
+        ]);
+
+        $sent = app(FacebookCapiReporter::class)->reportCompleteRegistration($tenant, 'owner@example.com');
+
+        $this->assertTrue($sent);
+        Http::assertSent(function ($request) {
+            $url = $request->data()['data'][0]['event_source_url'];
+
+            return str_starts_with($url, 'http') && str_ends_with($url, '/pricing');
+        });
+    }
+
     public function test_skips_when_disabled(): void
     {
         Http::fake();

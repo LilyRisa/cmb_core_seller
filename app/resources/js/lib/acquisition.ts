@@ -32,7 +32,9 @@ export function captureAcquisition(search: string, pathname: string): void {
     if (Object.keys(data).length === 0) {
         return;
     }
-    data.landing_page = pathname;
+    // Tuyệt đối hoá URL — Meta CAPI từ chối `event_source_url` dạng pathname tương đối
+    // (SPEC 2026-07-22-facebook-pixel-capi-growth-attribution-design.md §3).
+    data.landing_page = window.location.origin + pathname;
     if (document.referrer) data.referrer = document.referrer;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }

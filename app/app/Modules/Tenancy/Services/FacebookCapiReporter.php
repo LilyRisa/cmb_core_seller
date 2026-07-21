@@ -48,7 +48,7 @@ class FacebookCapiReporter
             'event_name' => 'CompleteRegistration',
             'event_time' => $tenant->created_at->getTimestamp(),
             'event_id' => $eventId,
-            'event_source_url' => (string) (($acquisition['landing_page'] ?? null) ?: config('app.url')),
+            'event_source_url' => $this->resolveEventSourceUrl($acquisition),
             'action_source' => 'website',
             'user_data' => array_filter([
                 'em' => [hash('sha256', mb_strtolower(trim($email)))],
@@ -90,5 +90,26 @@ class FacebookCapiReporter
         ])->save();
 
         return true;
+    }
+
+    /**
+     * Meta CAPI bắt buộc `event_source_url` là URL tuyệt đối http(s):// — pathname tương đối
+     * (vd `/pricing`) bị Meta từ chối event. Belt-and-suspenders: FE (`lib/acquisition.ts`) đã
+     * lưu URL tuyệt đối, nhưng vẫn tự vá ở đây phòng khi giá trị tương đối lọt tới (bundle FE
+     * cũ trong lúc rolling deploy, caller khác trong tương lai, request dựng tay...).
+     */
+    private function resolveEventSourceUrl(array $acquisition): string
+    {
+        $landingPage = (string) ($acquisition['landing_page'] ?? '');
+        if ($landingPage !== '' && preg_match('#^https?://#i', $landingPage) === 1) {
+            return $landingPage;
+        }
+
+        $appUrl = rtrim((string) config('app.url'), '/');
+        if ($landingPage === '') {
+            return $appUrl;
+        }
+
+        return $appUrl.'/'.ltrim($landingPage, '/');
     }
 }
