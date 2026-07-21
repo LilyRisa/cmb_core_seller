@@ -40,13 +40,15 @@ class AuthController extends Controller
         // phép chặn đăng ký thật chỉ vì vượt quá `max:255`; TRUNCATE lặng lẽ trước khi validate
         // thay vì để rule `max:255` trả 422 (Str::limit($v, 255, '') = cắt đúng 255 ký tự, KHÔNG
         // nối thêm '...' — mặc định của Str::limit sẽ vượt quá 255 nếu chuỗi gốc đã đủ 255).
-        $acquisitionInput = (array) $request->input('acquisition', []);
-        foreach (['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'fbp', 'fbc', 'landing_page', 'referrer'] as $field) {
-            if (isset($acquisitionInput[$field]) && is_string($acquisitionInput[$field])) {
-                $acquisitionInput[$field] = Str::limit($acquisitionInput[$field], 255, '');
+        // Chỉ đụng vào khi đúng là array — nếu client gửi `acquisition` sai kiểu (vd chuỗi), giữ
+        // nguyên để rule `acquisition => array` bên dưới vẫn từ chối như cũ, không âm thầm ép kiểu.
+        $acquisitionInput = $request->input('acquisition');
+        if (is_array($acquisitionInput)) {
+            foreach (['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'fbp', 'fbc', 'landing_page', 'referrer'] as $field) {
+                if (isset($acquisitionInput[$field]) && is_string($acquisitionInput[$field])) {
+                    $acquisitionInput[$field] = Str::limit($acquisitionInput[$field], 255, '');
+                }
             }
-        }
-        if ($acquisitionInput !== []) {
             $request->merge(['acquisition' => $acquisitionInput]);
         }
         $data = $request->validate([
