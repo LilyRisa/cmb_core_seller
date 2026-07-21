@@ -61,8 +61,8 @@ export function useResetTenantUserPassword() {
 export function useSuspendTenantUser() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (id: number) =>
-            (await api.post<{ data: { id: number; suspended_at: string } }>(`/admin/users/${id}/suspend`)).data.data,
+        mutationFn: async ({ id, reason }: { id: number; reason: string }) =>
+            (await api.post<{ data: { id: number; suspended_at: string } }>(`/admin/users/${id}/suspend`, { reason })).data.data,
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['tenant-users'] });
             qc.invalidateQueries({ queryKey: ['tenant-user'] });
@@ -73,8 +73,8 @@ export function useSuspendTenantUser() {
 export function useReactivateTenantUser() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (id: number) =>
-            (await api.post<{ data: { id: number; suspended_at: null } }>(`/admin/users/${id}/reactivate`)).data.data,
+        mutationFn: async ({ id, reason }: { id: number; reason: string }) =>
+            (await api.post<{ data: { id: number; suspended_at: null } }>(`/admin/users/${id}/reactivate`, { reason })).data.data,
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['tenant-users'] });
             qc.invalidateQueries({ queryKey: ['tenant-user'] });

@@ -51,8 +51,8 @@ export function useUpdateAdminUser() {
 export function useSuspendAdminUser() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (id: number) =>
-            (await api.post<{ data: AdminRow }>(`/admin/admin-users/${id}/suspend`)).data.data,
+        mutationFn: async ({ id, reason }: { id: number; reason: string }) =>
+            (await api.post<{ data: AdminRow }>(`/admin/admin-users/${id}/suspend`, { reason })).data.data,
         onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
     });
 }
@@ -60,8 +60,8 @@ export function useSuspendAdminUser() {
 export function useReactivateAdminUser() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (id: number) =>
-            (await api.post<{ data: AdminRow }>(`/admin/admin-users/${id}/reactivate`)).data.data,
+        mutationFn: async ({ id, reason }: { id: number; reason: string }) =>
+            (await api.post<{ data: AdminRow }>(`/admin/admin-users/${id}/reactivate`, { reason })).data.data,
         onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
     });
 }
