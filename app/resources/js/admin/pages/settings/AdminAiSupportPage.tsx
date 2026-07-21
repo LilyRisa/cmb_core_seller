@@ -1,13 +1,21 @@
 // /admin/ai-support — trang RIÊNG cấu hình trợ lý "Hỏi AI" (module Support).
 // TỰ CHỨA: credentials riêng (base_url + api_key + model), KHÔNG dùng chung bảng
-// "Nhà cung cấp AI" của messaging. Tách CHAT và EMBEDDING độc lập → chat dùng
-// Có thể dùng cùng provider hay khác provider cho chat và embedding (tuỳ base_url/model).
+// "Nhà cung cấp AI" của messaging. Tách CHAT và EMBEDDING độc lập → có thể dùng cùng
+// provider hay khác provider cho chat và embedding (tuỳ base_url/model).
+//
+// api_key dùng chung SecretInput (hiển thị plaintext, "Đặt giá trị" để đổi — xem
+// docs/superpowers/specs/2026-07-21-admin-panel-ux-redesign-design.md §5.3), thay Input
+// hand-rolled trước đây. "Lưu" mỗi khối (chat/embedding) khoá tới khi Test kết nối khối đó
+// pass với đúng giá trị đang có trên form (§5.4) — đổi field bất kỳ sau khi test ⇒ phải
+// test lại. Khối embedding vẫn giữ lối thoát "để trống Base URL = tắt vector" — không cần
+// test khi tắt hẳn.
 
 import { useEffect, useState } from 'react';
-import { App, Alert, Button, Card, Input, Space, Spin, Typography } from 'antd';
-import { CustomerServiceOutlined, SaveOutlined } from '@ant-design/icons';
+import { App, Alert, Button, Card, Input, Space, Spin, Tag, Typography } from 'antd';
+import { CustomerServiceOutlined, SaveOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
-import { useSupportAiConfig, useSaveSupportSetting, SUPPORT_KEYS } from '../../lib/aiSupport';
+import { useSupportAiConfig, useSaveSupportSetting, useTestAiSupportDraft, SUPPORT_KEYS } from '../../lib/aiSupport';
+import { SecretInput } from '../../components/SecretInput';
 
 const { Text, Paragraph } = Typography;
 
@@ -15,8 +23,8 @@ export function AdminAiSupportPage() {
     const { message } = App.useApp();
     const { data: cfg, isLoading } = useSupportAiConfig();
     const save = useSaveSupportSetting();
+    const testDraft = useTestAiSupportDraft();
 
-    // Draft cục bộ. api_key: chuỗi rỗng = GIỮ NGUYÊN (không ghi đè); nhập mới = đổi.
     const [chatBaseUrl, setChatBaseUrl] = useState('');
     const [chatKey, setChatKey] = useState('');
     const [chatModel, setChatModel] = useState('');
@@ -24,17 +32,24 @@ export function AdminAiSupportPage() {
     const [embKey, setEmbKey] = useState('');
     const [embModel, setEmbModel] = useState('');
 
+    // Chữ ký (base_url|api_key|model) đã Test PASS gần nhất cho từng khối — Lưu chỉ mở
+    // khoá khi chữ ký hiện tại khớp; đổi field nào cũng buộc test lại (spec §5.4).
+    const [chatVerifiedSig, setChatVerifiedSig] = useState<string | null>(null);
+    const [embVerifiedSig, setEmbVerifiedSig] = useState<string | null>(null);
+
     useEffect(() => {
         if (cfg) {
             setChatBaseUrl(cfg.chat_base_url);
             setChatModel(cfg.chat_model);
             setEmbBaseUrl(cfg.embedding_base_url);
             setEmbModel(cfg.embedding_model);
-            // Trang admin: hiển thị thẳng key hiện có để xem/sửa.
             setChatKey(cfg.chat_api_key);
             setEmbKey(cfg.embedding_api_key);
         }
     }, [cfg]);
+
+    const chatSig = `${chatBaseUrl}|${chatKey}|${chatModel}`;
+    const embSig = `${embBaseUrl}|${embKey}|${embModel}`;
 
     const saveOne = (key: string, value: string, label: string) =>
         new Promise<void>((resolve) => {
@@ -53,6 +68,17 @@ export function AdminAiSupportPage() {
         await saveOne(SUPPORT_KEYS.embeddingBaseUrl, embBaseUrl.trim(), 'Embedding Base URL');
         await saveOne(SUPPORT_KEYS.embeddingModel, embModel.trim(), 'Embedding Model');
         await saveOne(SUPPORT_KEYS.embeddingApiKey, embKey.trim(), 'Embedding API key');
+    };
+
+    const testChat = async () => {
+        const r = await testDraft.mutateAsync({ kind: 'chat', base_url: chatBaseUrl.trim(), api_key: chatKey.trim(), model: chatModel.trim() });
+        if (r.ok) { message.success(r.message ?? 'Kết nối OK.'); setChatVerifiedSig(chatSig); }
+        else message.error(r.message ?? 'Kết nối thất bại.');
+    };
+    const testEmbedding = async () => {
+        const r = await testDraft.mutateAsync({ kind: 'embedding', base_url: embBaseUrl.trim(), api_key: embKey.trim(), model: embModel.trim() });
+        if (r.ok) { message.success(r.message ?? 'Kết nối OK.'); setEmbVerifiedSig(embSig); }
+        else message.error(r.message ?? 'Kết nối thất bại.');
     };
 
     if (isLoading) return <Card><Spin /></Card>;
@@ -80,13 +106,21 @@ export function AdminAiSupportPage() {
                     </div>
                     <div>
                         <Text strong>API key</Text>
-                        <Input value={chatKey} onChange={(e) => setChatKey(e.target.value)} placeholder="Nhập API key" autoComplete="off" />
+                        <SecretInput value={chatKey || null} onSave={setChatKey} />
                     </div>
                     <div>
                         <Text strong>Model</Text>
                         <Input value={chatModel} onChange={(e) => setChatModel(e.target.value)} placeholder="google/gemini-2.0-flash-lite-001" />
                     </div>
-                    <Button type="primary" icon={<SaveOutlined />} loading={save.isPending} onClick={saveChat}>Lưu cấu hình chat</Button>
+                    <Space>
+                        <Button icon={<ThunderboltOutlined />} loading={testDraft.isPending} onClick={testChat}>Test kết nối</Button>
+                        {chatSig === chatVerifiedSig
+                            ? <Tag color="green">Đã xác minh</Tag>
+                            : <Tag color="orange">Chưa xác minh — cần Test trước khi Lưu</Tag>}
+                    </Space>
+                    <Button type="primary" icon={<SaveOutlined />} loading={save.isPending} disabled={chatSig !== chatVerifiedSig} onClick={saveChat}>
+                        Lưu cấu hình chat
+                    </Button>
                 </Space>
             </Card>
 
@@ -104,13 +138,29 @@ export function AdminAiSupportPage() {
                     </div>
                     <div>
                         <Text strong>API key</Text>
-                        <Input value={embKey} onChange={(e) => setEmbKey(e.target.value)} placeholder="Nhập API key" autoComplete="off" />
+                        <SecretInput value={embKey || null} onSave={setEmbKey} />
                     </div>
                     <div>
                         <Text strong>Model</Text>
                         <Input value={embModel} onChange={(e) => setEmbModel(e.target.value)} placeholder="text-embedding-3-small" />
                     </div>
-                    <Button type="primary" icon={<SaveOutlined />} loading={save.isPending} onClick={saveEmbedding}>Lưu cấu hình embedding</Button>
+                    <Space>
+                        <Button icon={<ThunderboltOutlined />} loading={testDraft.isPending} onClick={testEmbedding} disabled={embBaseUrl.trim() === ''}>
+                            Test kết nối
+                        </Button>
+                        {embBaseUrl.trim() === ''
+                            ? <Tag>Đang tắt vector — không cần test</Tag>
+                            : embSig === embVerifiedSig
+                                ? <Tag color="green">Đã xác minh</Tag>
+                                : <Tag color="orange">Chưa xác minh — cần Test trước khi Lưu</Tag>}
+                    </Space>
+                    <Button
+                        type="primary" icon={<SaveOutlined />} loading={save.isPending}
+                        disabled={embBaseUrl.trim() !== '' && embSig !== embVerifiedSig}
+                        onClick={saveEmbedding}
+                    >
+                        Lưu cấu hình embedding
+                    </Button>
                 </Space>
                 <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}>
                     Sau khi lưu embedding, chạy <Text code>php artisan help:index --fresh</Text> để tạo lại vector tài liệu.

@@ -76,3 +76,23 @@ export function useSaveSupportSetting() {
         onSuccess: () => qc.invalidateQueries({ queryKey: ['support-ai-config'] }),
     });
 }
+
+export interface AiSupportDraftTestResult {
+    ok: boolean;
+    message?: string;
+}
+
+export interface AiSupportDraftTestPayload {
+    kind: 'chat' | 'embedding';
+    base_url: string;
+    api_key: string;
+    model: string;
+}
+
+/** Test kết nối bằng credentials ĐANG NHẬP trên form (chưa lưu qua system-settings). */
+export function useTestAiSupportDraft() {
+    return useMutation({
+        mutationFn: async (payload: AiSupportDraftTestPayload) =>
+            (await api.post<{ data: AiSupportDraftTestResult }>('/admin/ai-support/test-draft', payload)).data.data,
+    });
+}
