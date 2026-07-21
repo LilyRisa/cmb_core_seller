@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Key } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Card, Input, Radio, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -19,14 +19,17 @@ const KIND_OPTIONS: Array<{ value: FilterKind; label: string }> = [
 ];
 
 // Tổng chiều rộng cột thực tế cho scroll={{x}}: 48 (checkbox) + 240 (Gian hàng) + 220
-// (Chủ sở hữu) + 150 (Xác minh email) + 180 (Gói) + 180 (Gian hàng đã kết nối) + 160 (Trạng thái)
-// = 1178, làm tròn lên 1180 cho phần đệm border/padding của ô.
-const TABLE_SCROLL_X = 1180;
+// (Chủ sở hữu) + 150 (Xác minh email) + 180 (Gói) + 150 (Nguồn) + 180 (Gian hàng đã kết nối)
+// + 160 (Trạng thái) = 1328, làm tròn lên 1330 cho phần đệm border/padding của ô.
+const TABLE_SCROLL_X = 1330;
 
 export function AdminTenantsPage() {
     const navigate = useNavigate();
+    const location = useLocation();
+    const presetUtmSource = (location.state as { presetUtmSource?: string } | null)?.presetUtmSource;
     const [q, setQ] = useState('');
     const [kind, setKind] = useState<FilterKind>('all');
+    const [utmSource, setUtmSource] = useState(presetUtmSource ?? '');
     const [page, setPage] = useState(1);
     const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
     const [selectedRows, setSelectedRows] = useState<AdminTenantSummary[]>([]);
@@ -35,8 +38,9 @@ export function AdminTenantsPage() {
         q: q.trim() || undefined,
         over_quota: kind === 'over_quota',
         suspended: kind === 'suspended',
+        utm_source: utmSource.trim() || undefined,
         page, per_page: 30,
-    }), [q, kind, page]);
+    }), [q, kind, utmSource, page]);
 
     const { data, isLoading, isFetching } = useAdminTenants(filters);
 
@@ -81,6 +85,14 @@ export function AdminTenantsPage() {
                     <Tag color={planColor(r.subscription.plan_code)}>{(r.subscription.plan_code ?? '—').toUpperCase()}</Tag>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.subscription.status}</Typography.Text>
                 </Space>
+            ) : <Typography.Text type="secondary">—</Typography.Text>,
+        },
+        {
+            title: 'Nguồn', key: 'acquisition', width: 150,
+            render: (_v, r) => r.acquisition?.utm_source ? (
+                <Tooltip title={r.acquisition.utm_campaign ? `Chiến dịch: ${r.acquisition.utm_campaign}` : undefined}>
+                    <Tag>{r.acquisition.utm_source}</Tag>
+                </Tooltip>
             ) : <Typography.Text type="secondary">—</Typography.Text>,
         },
         {
@@ -134,6 +146,9 @@ export function AdminTenantsPage() {
                     <Radio.Group value={kind} optionType="button" buttonStyle="solid"
                         onChange={(e) => { setKind(e.target.value as FilterKind); setPage(1); }}
                         options={KIND_OPTIONS} />
+                    <Input placeholder="Lọc theo utm_source" allowClear
+                        value={utmSource} onChange={(e) => { setUtmSource(e.target.value); setPage(1); }}
+                        style={{ width: 200 }} />
                 </Space>
 
                 <Space size={12} wrap style={{ marginBottom: 12 }}>

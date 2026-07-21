@@ -25,6 +25,19 @@ export interface AdminSubscription {
     over_quota_locked: boolean;
 }
 
+export interface TenantAcquisition {
+    utm_source?: string | null;
+    utm_medium?: string | null;
+    utm_campaign?: string | null;
+    utm_content?: string | null;
+    utm_term?: string | null;
+    fbclid?: string | null;
+    landing_page?: string | null;
+    referrer?: string | null;
+    captured_at?: string | null;
+    capi_reported_at?: string | null;
+}
+
 export interface AdminTenantSummary {
     id: number;
     name: string;
@@ -35,6 +48,7 @@ export interface AdminTenantSummary {
     owner: AdminOwner | null;
     subscription: AdminSubscription | null;
     usage: { channel_accounts: { used: number; limit: number; over: boolean } };
+    acquisition: TenantAcquisition | null;
 }
 
 export interface AdminChannelAccount {
@@ -214,7 +228,7 @@ export interface AdminUserRow {
 
 interface Paginated<T> { data: T[]; meta: { pagination: { page: number; per_page: number; total: number; total_pages: number } } }
 
-export interface AdminTenantsFilters { q?: string; over_quota?: boolean; suspended?: boolean; page?: number; per_page?: number }
+export interface AdminTenantsFilters { q?: string; over_quota?: boolean; suspended?: boolean; utm_source?: string; page?: number; per_page?: number }
 
 export function useAdminTenants(filters: AdminTenantsFilters = {}) {
     return useQuery({
@@ -224,6 +238,7 @@ export function useAdminTenants(filters: AdminTenantsFilters = {}) {
             if (filters.q) params.q = filters.q;
             if (filters.over_quota) params.over_quota = 1;
             if (filters.suspended) params.suspended = 1;
+            if (filters.utm_source) params.utm_source = filters.utm_source;
             if (filters.page) params.page = filters.page;
             if (filters.per_page) params.per_page = filters.per_page;
             const { data } = await api.get<Paginated<AdminTenantSummary>>('/admin/tenants', { params });
