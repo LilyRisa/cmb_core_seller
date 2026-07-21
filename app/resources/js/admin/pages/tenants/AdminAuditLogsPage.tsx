@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Card, DatePicker, Drawer, Input, Space, Table, Tag, Typography } from 'antd';
+import { AutoComplete, Card, DatePicker, Drawer, Empty, Input, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { formatDateTimeSeconds } from '@/lib/format';
 import { useAdminAuditLogs, type AdminAuditLogRow } from '@admin/lib/admin';
 import { TenantPicker } from '@admin/components/TenantPicker';
+import { AUDIT_ACTION_CODES } from '@admin/lib/auditActionCodes';
+
+const ACTION_OPTIONS = AUDIT_ACTION_CODES.map((code) => ({ value: code }));
 
 const { RangePicker } = DatePicker;
 
@@ -60,10 +63,15 @@ export function AdminAuditLogsPage() {
             <PageHeader title="Audit log" subtitle="Search xuyên tenant. Action `admin.*` để xem mọi thao tác super-admin." />
             <Card>
                 <Space style={{ marginBottom: 12 }} wrap>
-                    <Input
-                        placeholder="action (vd admin.* hoặc admin.voucher.create)"
+                    <AutoComplete
+                        options={ACTION_OPTIONS}
                         value={action}
-                        onChange={(e) => { setAction(e.target.value); setPage(1); }}
+                        onChange={(v) => { setAction(v); setPage(1); }}
+                        filterOption={(inputValue, option) =>
+                            ((option?.value as string) ?? '').toLowerCase().includes(inputValue.toLowerCase())
+                        }
+                        placeholder="Action (gõ hoặc chọn, vd admin.* hoặc admin.voucher.create)"
+                        allowClear
                         style={{ width: 280 }}
                     />
                     <TenantPicker value={tenantId} onChange={(v) => { setTenantId(v); setPage(1); }} placeholder="Tenant (mã/tên/email)" style={{ width: 220 }} />
@@ -77,6 +85,7 @@ export function AdminAuditLogsPage() {
                     columns={columns}
                     dataSource={data?.data ?? []}
                     pagination={{ current: page, pageSize: 50, total: data?.meta.pagination.total ?? 0, showSizeChanger: false, onChange: setPage }}
+                    locale={{ emptyText: <Empty description="Chưa có nhật ký nào khớp bộ lọc." /> }}
                 />
             </Card>
 
