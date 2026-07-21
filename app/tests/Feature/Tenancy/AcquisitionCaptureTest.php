@@ -83,4 +83,32 @@ class AcquisitionCaptureTest extends TestCase
         $this->assertSame('RealAgent/2.0', $tenant->acquisition['user_agent']);
         $this->assertNotEmpty($tenant->acquisition['ip']);
     }
+
+    /**
+     * `acquisition.referrer` = `document.referrer` bắt tự động phía trình duyệt — người đăng ký
+     * không nhìn thấy hay chỉnh sửa được giá trị này. Một field theo-dõi best-effort không được
+     * phép chặn đăng ký thật (422) chỉ vì trang giới thiệu trả referrer dài hơn 255 ký tự; phải
+     * TRUNCATE lặng lẽ về đúng 255 ký tự thay vì từ chối request.
+     */
+    public function test_register_truncates_overlong_referrer_instead_of_rejecting(): void
+    {
+        $longReferrer = str_repeat('a', 400);
+
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Nguyen Van F',
+            'email' => 'f@example.com',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+            'acquisition' => [
+                'utm_source' => 'facebook',
+                'referrer' => $longReferrer,
+            ],
+        ]);
+
+        $response->assertCreated();
+
+        $tenant = Tenant::where('name', 'Nguyen Van F Shop')->firstOrFail();
+        $this->assertSame(255, strlen($tenant->acquisition['referrer']));
+        $this->assertSame(str_repeat('a', 255), $tenant->acquisition['referrer']);
+    }
 }

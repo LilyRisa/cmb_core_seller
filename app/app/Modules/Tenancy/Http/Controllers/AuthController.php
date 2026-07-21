@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 
 /**
@@ -33,6 +34,20 @@ class AuthController extends Controller
         // (User::email mutator) — tránh lọt trùng email chỉ khác hoa/thường rồi vỡ unique constraint.
         if ($request->filled('email')) {
             $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
+        }
+        // `acquisition.*` là dữ liệu tự động bắt (referrer trình duyệt, fbclid...) — user không
+        // hề nhìn thấy hay chỉnh sửa được. Một field theo-dõi best-effort không bao giờ được
+        // phép chặn đăng ký thật chỉ vì vượt quá `max:255`; TRUNCATE lặng lẽ trước khi validate
+        // thay vì để rule `max:255` trả 422 (Str::limit($v, 255, '') = cắt đúng 255 ký tự, KHÔNG
+        // nối thêm '...' — mặc định của Str::limit sẽ vượt quá 255 nếu chuỗi gốc đã đủ 255).
+        $acquisitionInput = (array) $request->input('acquisition', []);
+        foreach (['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'fbp', 'fbc', 'landing_page', 'referrer'] as $field) {
+            if (isset($acquisitionInput[$field]) && is_string($acquisitionInput[$field])) {
+                $acquisitionInput[$field] = Str::limit($acquisitionInput[$field], 255, '');
+            }
+        }
+        if ($acquisitionInput !== []) {
+            $request->merge(['acquisition' => $acquisitionInput]);
         }
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
