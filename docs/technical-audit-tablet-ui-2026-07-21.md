@@ -132,3 +132,18 @@ Phạm vi: `app.cmbcore.com`, viewport 1280×800 / 1024×768 / 900×600 (chỉ n
 **Ảnh chụp:** `messaging-1024x768.png`, `messaging-conv-1024x768.png`, `messaging-flows-1024x768.png`, `messaging-templates-1024x768.png`, `messaging-autorules-1024x768.png`.
 
 ---
+
+## Đăng bán sàn {#đăng-bán-sàn}
+
+Cả 4 trang đều là Table — 3/4 trang dính lỗi wrap ký tự dọc giống hệt các mục trên (cột "THƯƠNG HIỆU"/"NGÀNH HÀNG"/"GIAN HÀNG"/"CHIẾN DỊCH"). Riêng `on-channel` code đã làm ĐÚNG (ellipsis) — bằng chứng cho thấy cách sửa đã tồn tại sẵn trong codebase, chỉ cần áp dụng nhất quán.
+
+| Trang | Viewport | Mức độ | Mô tả |
+|---|---|---|---|
+| `/marketplace/products` | 1024×768 | **High** | Header "THƯƠNG HIỆU", "NGÀNH HÀNG" bẻ ký tự dọc; nghi ngờ còn cột/nút bị tràn ẩn bên phải (thấy 1 vạch chia cắt ở mép). |
+| `/marketplace/to-push` | 1024×768 | **High** | Cột "GIAN HÀNG" chứa tên gian hàng dài ("CMB audio - lộc phát") bẻ ký tự dọc, kéo 1 hàng cao hơn 250px; nút xoá ở cuối hàng bị cắt mất 1 phần. |
+| `/marketplace/on-channel` | 1024×768 | **OK (mẫu tốt)** | Cột "SẢN PHẨM" dùng ellipsis đúng cách ("Mạch loa D10 Bluetooth 5.0 hát Karaoke công s..."), không wrap vỡ dòng — nên dùng làm mẫu tham chiếu khi sửa các bảng khác. |
+| `/marketplace/promotions` | 1024×768 | **High** | Header "CHIẾN DỊCH" bẻ ký tự dọc y hệt các bảng trên (trang test không có dữ liệu chiến dịch nên chưa thấy hàng dữ liệu thật, nhưng lỗi header đã đủ rõ). |
+
+**Ảnh chụp:** `mp-products-1024x768.png`, `mp-topush-1024x768.png`, `mp-onchannel-1024x768.png`, `mp-promotions-1024x768.png`.
+
+---
