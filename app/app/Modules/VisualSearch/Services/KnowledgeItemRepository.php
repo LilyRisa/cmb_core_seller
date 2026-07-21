@@ -65,4 +65,13 @@ class KnowledgeItemRepository implements KnowledgeItemStore
             ->where('id', $itemId)
             ->update(['kb_status' => VisualTrainingItem::KB_FAILED]);
     }
+
+    public function stalledIds(int $olderThanMinutes): array
+    {
+        return VisualTrainingItem::withoutGlobalScope(TenantScope::class)
+            ->whereIn('kb_status', [VisualTrainingItem::KB_PENDING, VisualTrainingItem::KB_FAILED])
+            ->where('updated_at', '<=', now()->subMinutes($olderThanMinutes))
+            ->pluck('id')
+            ->all();
+    }
 }

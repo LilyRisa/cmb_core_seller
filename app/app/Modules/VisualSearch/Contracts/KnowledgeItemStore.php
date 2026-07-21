@@ -18,4 +18,7 @@ interface KnowledgeItemStore
     public function markIndexed(int $itemId, int $chunkCount, ?string $embeddingModel): void;
 
     public function markFailed(int $itemId): void;
+
+    /** @return list<int> id các mục kb_status pending/failed đã quá hạn (chưa index xong sau X phút). */
+    public function stalledIds(int $olderThanMinutes): array;
 }

@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Messaging\Console\Commands\PushNewMessageDigest;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\RecomputeConversationPreviews;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\ReconcileMessagingSync;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\ReindexKnowledge;
+use CMBcoreSeller\Modules\Messaging\Console\Commands\RetryStalledKnowledgeIndexing;
 use CMBcoreSeller\Modules\Messaging\Contracts\ExpoPushSenderContract;
 use CMBcoreSeller\Modules\Messaging\Contracts\MessageInboxContract;
 use CMBcoreSeller\Modules\Messaging\Events\CommentReceived;
@@ -163,6 +164,7 @@ class MessagingServiceProvider extends ServiceProvider
                 RecomputeConversationPreviews::class,
                 PushNewMessageDigest::class,
                 ReindexKnowledge::class,
+                RetryStalledKnowledgeIndexing::class,
             ]);
         }
     }

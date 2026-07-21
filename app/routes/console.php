@@ -147,6 +147,9 @@ Schedule::command('messaging:push-digest')->everyThirtyMinutes()->onOneServer()-
 Schedule::command('messaging:zalo:refresh-tokens')->hourly()->onOneServer()->withoutOverlapping();
 // SPEC-0032: mỗi 15 phút đồng bộ trạng thái duyệt utility template đang pending (Meta).
 Schedule::job(new SyncUtilityTemplateStatus)->everyFifteenMinutes()->name('utility-template-sync')->onOneServer()->withoutOverlapping();
+// Lưới an toàn: mục "Kiến thức" kẹt kb_status pending/failed (job index lần đầu lỗi/mất) sẽ vô
+// hình với AI RAG vĩnh viễn nếu không ai lưu lại thủ công — dò + dispatch lại mỗi 15 phút.
+Schedule::command('messaging:kb-retry-stalled')->everyFifteenMinutes()->onOneServer()->withoutOverlapping();
 
 // Every 5': poll chat for shops with messaging enabled on connectors that support polling
 // (currently Lazada — has no webhook for buyer messages; Shopee/TikTok/Facebook are webhook-only).
