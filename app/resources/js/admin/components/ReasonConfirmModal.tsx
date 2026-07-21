@@ -7,6 +7,10 @@
 //
 // Heuristic cho hành động mới chưa liệt kê trong spec: High-impact nếu có thể khoá tenant/user
 // khỏi tài khoản của họ, đảo ngược tiền đã thu/nợ, hoặc khó hoàn tác nếu không có CSKH can thiệp.
+//
+// Export chính là hook `useReasonConfirm()` (không phải component `<ReasonConfirmModal>` như tên
+// file/spec §5.1 gợi ý) — hook phù hợp hơn vì cần truy cập `App.useApp()` (modal/message) theo
+// đúng context gọi, xem `ReasonConfirmOptions` bên dưới cho API.
 
 import type { ReactNode } from 'react';
 import { App, Form, Input, Typography } from 'antd';
@@ -44,7 +48,7 @@ export function useReasonConfirm() {
                         <Form.Item
                             name="reason"
                             label={opts.reasonLabel ?? 'Lý do (≥10 ký tự — sẽ ghi vào audit log)'}
-                            rules={[{ required: true, min: 10, message: 'Lý do phải có tối thiểu 10 ký tự.' }]}
+                            rules={[{ required: true, min: 10, whitespace: true, message: 'Lý do phải có tối thiểu 10 ký tự.' }]}
                         >
                             <Input.TextArea rows={3} placeholder={opts.reasonPlaceholder} />
                         </Form.Item>
