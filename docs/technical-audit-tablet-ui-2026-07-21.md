@@ -100,3 +100,35 @@ Phạm vi: `app.cmbcore.com`, viewport 1280×800 / 1024×768 / 900×600 (chỉ n
 **Ảnh chụp:** `customers-1024x768.png`, `customers-1280x800.png`, `channels-1024x768.png`, `products-1024x768.png`.
 
 ---
+
+## Tin nhắn {#tin-nhắn}
+
+### `/messaging` — Hộp thư
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| 1024×768 | OK | Layout 2 cột (danh sách hội thoại + khung chat) hoạt động tốt, mở 1 hội thoại vẫn đọc được, không vỡ. Thanh tab trên cùng (Hộp thư/Kết nối kênh/.../Cài đặt AI) hơi tràn nhẹ ở mục cuối "Cài đặt AI" — Low, không chặn thao tác (vẫn là link điều hướng riêng theo route, không phải nội dung ẩn). |
+
+### `/messaging/flows` — Kịch bản tự động
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| **1024×768** | **High** | **Cùng lỗi bảng ở trên nhưng lần này xảy ra ngay với TIÊU ĐỀ CỘT**: header "TÊN"/"KỊCH BẢN..." và "CẬP NHẬT" bị bẻ ký tự dọc thành cột chữ cao ngất, chiếm phần lớn chiều cao bảng dù cột "PHẠM VI TRANG"/"TRẠNG THÁI" bên cạnh còn dư khoảng trắng. Xác nhận thêm 1 bảng nữa có cùng gốc bệnh — tần suất xuất hiện cao dần cho thấy đây là lỗi **toàn hệ thống** ở component Table dùng chung, không phải lỗi riêng từng trang. |
+
+### `/messaging/templates` — Mẫu tin
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| 1024×768 | OK | Bảng cột ngắn (MÃ/TÊN/NỘI DUNG/ẢNH/BẬT), không đủ dài để kích hoạt lỗi wrap — củng cố giả thuyết: lỗi chỉ lộ ra khi có cột tiêu đề/nội dung nhiều từ. |
+
+### `/messaging/auto-rules` — Tự động trả lời
+
+| Viewport | Mức độ | Mô tả |
+|---|---|---|
+| **1024×768** | **High** | Header "TÊN" và "NỘI DUNG" bị bẻ ký tự dọc y hệt `/messaging/flows` — thêm 1 bằng chứng nữa cho lỗi hệ thống. |
+
+**Chưa audit sâu trong đợt này** (do đã đủ bằng chứng cho lỗi hệ thống, ưu tiên thời gian cho các nhóm trang khác): `/messaging/channels`, `/messaging/utility-templates`, `/messaging/knowledge`.
+
+**Ảnh chụp:** `messaging-1024x768.png`, `messaging-conv-1024x768.png`, `messaging-flows-1024x768.png`, `messaging-templates-1024x768.png`, `messaging-autorules-1024x768.png`.
+
+---
