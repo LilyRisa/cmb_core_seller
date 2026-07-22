@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Notifications;
 
+use CMBcoreSeller\Modules\Billing\Events\ProTrialActivated;
 use CMBcoreSeller\Modules\Channels\Events\ChannelAccountNeedsReconnect;
 use CMBcoreSeller\Modules\Marketing\Events\AdMonitorActionTaken;
 use CMBcoreSeller\Modules\Marketing\Events\AdMonitorThresholdApproaching;
@@ -12,6 +13,7 @@ use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnChannelReconnect;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnNegativeOrder;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnOrderCancelled;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnReturnNew;
+use CMBcoreSeller\Modules\Notifications\Listeners\SendProTrialActivatedEmail;
 use CMBcoreSeller\Modules\Notifications\Listeners\SendWelcomeEmailOnVerified;
 use CMBcoreSeller\Modules\Orders\Events\OrderStatusChanged;
 use CMBcoreSeller\Modules\Orders\Events\OrderUpserted;
@@ -53,6 +55,7 @@ class NotificationsServiceProvider extends ServiceProvider
 
         // SPEC 0022 §3.1 — sau khi user verify email ⇒ gửi welcome.
         Event::listen(Verified::class, SendWelcomeEmailOnVerified::class);
+        Event::listen(ProTrialActivated::class, SendProTrialActivatedEmail::class);
 
         // SPEC 0036 — thông báo in-app: nghe domain event của các module khác (kênh giao
         // tiếp hợp lệ; KHÔNG gọi Services nội bộ của chúng). Listener queued (queue
