@@ -6,6 +6,7 @@ use CMBcoreSeller\Modules\Billing\Events\ProTrialActivated;
 use CMBcoreSeller\Modules\Channels\Events\ChannelAccountNeedsReconnect;
 use CMBcoreSeller\Modules\Marketing\Events\AdMonitorActionTaken;
 use CMBcoreSeller\Modules\Marketing\Events\AdMonitorThresholdApproaching;
+use CMBcoreSeller\Modules\Notifications\Console\Commands\BackfillNotificationCategory;
 use CMBcoreSeller\Modules\Notifications\Http\Middleware\EnsureEmailVerified;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnAdMonitorAction;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnAdMonitorApproaching;
@@ -66,5 +67,9 @@ class NotificationsServiceProvider extends ServiceProvider
         Event::listen(ReturnStatusChanged::class, NotifyOnReturnNew::class);
         Event::listen(AdMonitorThresholdApproaching::class, NotifyOnAdMonitorApproaching::class);
         Event::listen(AdMonitorActionTaken::class, NotifyOnAdMonitorAction::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([BackfillNotificationCategory::class]);
+        }
     }
 }
