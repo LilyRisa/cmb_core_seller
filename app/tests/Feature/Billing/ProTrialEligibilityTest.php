@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\ProTrialGrant;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
+use CMBcoreSeller\Modules\Billing\Services\ProTrialService;
 use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -131,7 +132,7 @@ class ProTrialEligibilityTest extends TestCase
 
     public function test_show_popup_true_when_offered_and_not_declined(): void
     {
-        app(\CMBcoreSeller\Modules\Billing\Services\ProTrialService::class)->offer($this->tenant->getKey());
+        app(ProTrialService::class)->offer($this->tenant->getKey());
 
         $this->actingAs($this->owner)->withHeaders($this->h())
             ->getJson('/api/v1/billing/pro-trial/eligibility')
@@ -142,7 +143,7 @@ class ProTrialEligibilityTest extends TestCase
 
     public function test_show_popup_false_when_declined(): void
     {
-        $service = app(\CMBcoreSeller\Modules\Billing\Services\ProTrialService::class);
+        $service = app(ProTrialService::class);
         $service->offer($this->tenant->getKey());
         $service->decline($this->tenant->getKey());
 
@@ -155,9 +156,9 @@ class ProTrialEligibilityTest extends TestCase
 
     public function test_show_popup_false_when_not_eligible_even_if_offered(): void
     {
-        $service = app(\CMBcoreSeller\Modules\Billing\Services\ProTrialService::class);
+        $service = app(ProTrialService::class);
         $service->offer($this->tenant->getKey());
-        app(\CMBcoreSeller\Modules\Settings\Services\SystemSettingService::class)->set('billing.pro_trial.enabled', false);
+        app(SystemSettingService::class)->set('billing.pro_trial.enabled', false);
 
         $this->actingAs($this->owner)->withHeaders($this->h())
             ->getJson('/api/v1/billing/pro-trial/eligibility')
@@ -168,7 +169,7 @@ class ProTrialEligibilityTest extends TestCase
 
     public function test_decline_endpoint_flips_show_popup_off(): void
     {
-        app(\CMBcoreSeller\Modules\Billing\Services\ProTrialService::class)->offer($this->tenant->getKey());
+        app(ProTrialService::class)->offer($this->tenant->getKey());
 
         $this->actingAs($this->owner)->withHeaders($this->h())
             ->postJson('/api/v1/billing/pro-trial/decline')
@@ -183,8 +184,8 @@ class ProTrialEligibilityTest extends TestCase
 
     public function test_decline_endpoint_requires_billing_manage(): void
     {
-        $viewer = \CMBcoreSeller\Models\User::factory()->create();
-        $this->tenant->users()->attach($viewer->getKey(), ['role' => \CMBcoreSeller\Modules\Tenancy\Enums\Role::Accountant->value]);
+        $viewer = User::factory()->create();
+        $this->tenant->users()->attach($viewer->getKey(), ['role' => Role::Accountant->value]);
 
         $this->actingAs($viewer)->withHeaders($this->h())
             ->postJson('/api/v1/billing/pro-trial/decline')

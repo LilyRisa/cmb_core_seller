@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Billing;
 
+use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\ProTrialOffer;
 use CMBcoreSeller\Modules\Billing\Services\ProTrialService;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -66,7 +67,7 @@ class ProTrialOfferTest extends TestCase
 
     public function test_new_tenant_registration_creates_offer_row(): void
     {
-        $this->seed(\CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder::class);
+        $this->seed(BillingPlanSeeder::class);
 
         $this->postJson('/api/v1/auth/register', [
             'name' => 'New User',
@@ -76,7 +77,7 @@ class ProTrialOfferTest extends TestCase
             'tenant_name' => 'New Shop',
         ])->assertCreated();
 
-        $tenantId = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::where('name', 'New Shop')->value('id');
+        $tenantId = Tenant::where('name', 'New Shop')->value('id');
         $this->assertNotNull($tenantId);
 
         $offer = $this->offerFor($tenantId);
