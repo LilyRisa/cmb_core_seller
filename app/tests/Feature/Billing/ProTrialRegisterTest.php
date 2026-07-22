@@ -94,4 +94,19 @@ class ProTrialRegisterTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'PRO_TRIAL_NOT_ELIGIBLE');
     }
+
+    public function test_register_fires_pro_trial_activated_event(): void
+    {
+        \Illuminate\Support\Facades\Event::fake([\CMBcoreSeller\Modules\Billing\Events\ProTrialActivated::class]);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/billing/pro-trial/register', ['terms_accepted' => true, 'terms_version' => 'refund-v1'])
+            ->assertOk();
+
+        \Illuminate\Support\Facades\Event::assertDispatched(
+            \CMBcoreSeller\Modules\Billing\Events\ProTrialActivated::class,
+            fn ($e) => $e->tenantId === $this->tenant->getKey()
+                && $e->expiresAt->diffInDays($e->grantedAt) === 30,
+        );
+    }
 }

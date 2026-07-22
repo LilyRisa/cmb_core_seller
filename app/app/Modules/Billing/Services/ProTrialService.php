@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Billing\Services;
 
+use CMBcoreSeller\Modules\Billing\Events\ProTrialActivated;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\ProTrialGrant;
 use CMBcoreSeller\Modules\Billing\Models\ProTrialOffer;
@@ -80,7 +81,7 @@ class ProTrialService
      */
     public function register(int $tenantId, string $termsVersion): Subscription
     {
-        return DB::transaction(function () use ($tenantId, $termsVersion) {
+        $subscription = DB::transaction(function () use ($tenantId, $termsVersion) {
             $elig = $this->eligibility($tenantId);
             if (! $elig['eligible']) {
                 throw ValidationException::withMessages([
@@ -126,5 +127,9 @@ class ProTrialService
                 ],
             ]);
         });
+
+        ProTrialActivated::dispatch($tenantId, $subscription->current_period_start, $subscription->current_period_end);
+
+        return $subscription;
     }
 }
