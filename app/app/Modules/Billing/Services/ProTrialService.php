@@ -20,11 +20,11 @@ class ProTrialService
 {
     public function __construct(protected SubscriptionService $subscriptions) {}
 
-    /** @return array{eligible:bool,reason:?string,duration_days:int,ends_preview:?string} */
+    /** @return array{eligible:bool,reason:?string,duration_days:int,ends_preview:?string,show_popup:bool} */
     public function eligibility(int $tenantId): array
     {
         $days = ProTrialSettings::durationDays();
-        $base = ['eligible' => false, 'reason' => null, 'duration_days' => $days, 'ends_preview' => null];
+        $base = ['eligible' => false, 'reason' => null, 'duration_days' => $days, 'ends_preview' => null, 'show_popup' => false];
 
         if (! ProTrialSettings::enabled()) {
             return [...$base, 'reason' => 'mode_off'];
@@ -45,9 +45,13 @@ class ProTrialService
             return [...$base, 'reason' => 'plan_too_high'];
         }
 
+        $offer = ProTrialOffer::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)->first();
+
         return [
             'eligible' => true, 'reason' => null, 'duration_days' => $days,
             'ends_preview' => Carbon::now()->addDays($days)->toIso8601String(),
+            'show_popup' => $offer !== null && $offer->declined_at === null,
         ];
     }
 

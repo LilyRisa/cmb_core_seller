@@ -117,4 +117,52 @@ class ProTrialEligibilityTest extends TestCase
             ->assertJsonPath('data.eligible', false)
             ->assertJsonPath('data.reason', 'plan_too_high');
     }
+
+    public function test_show_popup_false_when_never_offered(): void
+    {
+        // Tenant đủ điều kiện eligible NHƯNG chưa có row pro_trial_offers (tenant "cũ",
+        // tạo trước khi tính năng popup này tồn tại) ⇒ không tự hiện popup.
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/billing/pro-trial/eligibility')
+            ->assertOk()
+            ->assertJsonPath('data.eligible', true)
+            ->assertJsonPath('data.show_popup', false);
+    }
+
+    public function test_show_popup_true_when_offered_and_not_declined(): void
+    {
+        app(\CMBcoreSeller\Modules\Billing\Services\ProTrialService::class)->offer($this->tenant->getKey());
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/billing/pro-trial/eligibility')
+            ->assertOk()
+            ->assertJsonPath('data.eligible', true)
+            ->assertJsonPath('data.show_popup', true);
+    }
+
+    public function test_show_popup_false_when_declined(): void
+    {
+        $service = app(\CMBcoreSeller\Modules\Billing\Services\ProTrialService::class);
+        $service->offer($this->tenant->getKey());
+        $service->decline($this->tenant->getKey());
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/billing/pro-trial/eligibility')
+            ->assertOk()
+            ->assertJsonPath('data.eligible', true)
+            ->assertJsonPath('data.show_popup', false);
+    }
+
+    public function test_show_popup_false_when_not_eligible_even_if_offered(): void
+    {
+        $service = app(\CMBcoreSeller\Modules\Billing\Services\ProTrialService::class);
+        $service->offer($this->tenant->getKey());
+        app(\CMBcoreSeller\Modules\Settings\Services\SystemSettingService::class)->set('billing.pro_trial.enabled', false);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/billing/pro-trial/eligibility')
+            ->assertOk()
+            ->assertJsonPath('data.eligible', false)
+            ->assertJsonPath('data.show_popup', false);
+    }
 }
