@@ -165,4 +165,29 @@ class ProTrialEligibilityTest extends TestCase
             ->assertJsonPath('data.eligible', false)
             ->assertJsonPath('data.show_popup', false);
     }
+
+    public function test_decline_endpoint_flips_show_popup_off(): void
+    {
+        app(\CMBcoreSeller\Modules\Billing\Services\ProTrialService::class)->offer($this->tenant->getKey());
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/billing/pro-trial/decline')
+            ->assertOk()
+            ->assertJsonPath('data.declined', true);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/billing/pro-trial/eligibility')
+            ->assertOk()
+            ->assertJsonPath('data.show_popup', false);
+    }
+
+    public function test_decline_endpoint_requires_billing_manage(): void
+    {
+        $viewer = \CMBcoreSeller\Models\User::factory()->create();
+        $this->tenant->users()->attach($viewer->getKey(), ['role' => \CMBcoreSeller\Modules\Tenancy\Enums\Role::Accountant->value]);
+
+        $this->actingAs($viewer)->withHeaders($this->h())
+            ->postJson('/api/v1/billing/pro-trial/decline')
+            ->assertForbidden();
+    }
 }

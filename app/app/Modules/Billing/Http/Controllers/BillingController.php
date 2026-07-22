@@ -333,6 +333,16 @@ class BillingController extends Controller
         return response()->json(['data' => (new SubscriptionResource($sub->fresh('plan')))->toArray($request)]);
     }
 
+    /** POST /billing/pro-trial/decline — tắt vĩnh viễn popup mời trải nghiệm Pro cho tenant này. */
+    public function proTrialDecline(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('billing.manage'), 403, 'Chỉ chủ shop được từ chối lời mời trải nghiệm.');
+        $tenantId = (int) $this->tenant->id();
+        $this->proTrial->decline($tenantId);
+
+        return response()->json(['data' => ['declined' => true]]);
+    }
+
     /** GET /billing/billing-profile */
     public function profileShow(Request $request): JsonResponse
     {
