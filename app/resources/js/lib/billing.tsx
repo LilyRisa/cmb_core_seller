@@ -142,6 +142,7 @@ export interface ProTrialEligibility {
     reason: string | null;
     duration_days: number;
     ends_preview: string | null;
+    show_popup: boolean;
 }
 
 export interface CheckoutResult { invoice: Invoice; gateway: string; checkout: CheckoutSession }
@@ -341,6 +342,21 @@ export function useRegisterProTrial() {
             return data.data;
         },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['billing', tenantId] }),
+    });
+}
+
+/** Tắt vĩnh viễn popup mời trải nghiệm Pro cho tenant này (nút "Không, cảm ơn"). */
+export function useDeclineProTrial() {
+    const tenantId = useCurrentTenantId();
+    const api = useScopedApi();
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: async () => {
+            const { data } = await api!.post<{ data: { declined: boolean } }>('/billing/pro-trial/decline');
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['billing', tenantId, 'pro-trial-eligibility'] }),
     });
 }
 
