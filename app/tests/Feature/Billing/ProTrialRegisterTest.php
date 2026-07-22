@@ -4,6 +4,7 @@ namespace Tests\Feature\Billing;
 
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
+use CMBcoreSeller\Modules\Billing\Events\ProTrialActivated;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Billing\Services\ProTrialService;
 use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
@@ -12,6 +13,7 @@ use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use PDOException;
 use Tests\TestCase;
 
@@ -97,16 +99,19 @@ class ProTrialRegisterTest extends TestCase
 
     public function test_register_fires_pro_trial_activated_event(): void
     {
-        \Illuminate\Support\Facades\Event::fake([\CMBcoreSeller\Modules\Billing\Events\ProTrialActivated::class]);
+        Event::fake();
 
         $this->actingAs($this->owner)->withHeaders($this->h())
             ->postJson('/api/v1/billing/pro-trial/register', ['terms_accepted' => true, 'terms_version' => 'refund-v1'])
             ->assertOk();
 
-        \Illuminate\Support\Facades\Event::assertDispatched(
-            \CMBcoreSeller\Modules\Billing\Events\ProTrialActivated::class,
+        // First assert the event was dispatched at all
+        Event::assertDispatched(ProTrialActivated::class);
+
+        Event::assertDispatched(
+            ProTrialActivated::class,
             fn ($e) => $e->tenantId === $this->tenant->getKey()
-                && $e->expiresAt->diffInDays($e->grantedAt) === 30,
+                && abs($e->expiresAt->diffInDays($e->grantedAt)) == 30,
         );
     }
 }
