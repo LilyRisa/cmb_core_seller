@@ -17,7 +17,7 @@ import RefundPolicyModal from '@/components/billing/RefundPolicyModal';
 export function ProTrialOfferModal() {
     const { message } = AntApp.useApp();
     const canManage = useCan('billing.manage');
-    const eligibilityQ = useProTrialEligibility();
+    const eligibilityQ = useProTrialEligibility(canManage);
     const registerProTrial = useRegisterProTrial();
     const decline = useDeclineProTrial();
 

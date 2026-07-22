@@ -313,13 +313,13 @@ export function isTrialLike(sub: Subscription | null | undefined): boolean {
 }
 
 /** SPEC — Pro trial: kiểm tra tenant còn đủ điều kiện dùng thử Pro không (chưa từng trial/gói cao hơn...). */
-export function useProTrialEligibility() {
+export function useProTrialEligibility(enabled = true) {
     const tenantId = useCurrentTenantId();
     const api = useScopedApi();
 
     return useQuery({
         queryKey: ['billing', tenantId, 'pro-trial-eligibility'],
-        enabled: api != null,
+        enabled: api != null && enabled,
         queryFn: async () => {
             const { data } = await api!.get<{ data: ProTrialEligibility }>('/billing/pro-trial/eligibility');
             return data.data;
