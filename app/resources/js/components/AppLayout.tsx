@@ -33,6 +33,7 @@ import { useCan } from '@/lib/tenant';
 import { useGlobalMessageNotifications } from '@/lib/useMessageNotifications';
 import { useNotificationsRealtime } from '@/lib/notifications';
 import { AnnouncementPopup } from '@/components/AnnouncementPopup';
+import { ProTrialOfferModal } from '@/components/billing/ProTrialOfferModal';
 import { OverQuotaBanner } from '@/components/OverQuotaBanner';
 import { HelpChatWidget } from '@/components/support/HelpChatWidget';
 import { AppHeader } from '@/components/AppHeader';
@@ -178,6 +179,8 @@ export function AppLayout() {
             <HelpChatWidget />
             {/* SPEC 0037 — popup thông báo admin (giữa màn hình, 1 lần/tab). */}
             <AnnouncementPopup />
+            {/* Popup mời tenant mới đăng ký trải nghiệm Pro — hiện live theo eligibility.show_popup. */}
+            <ProTrialOfferModal />
         </Layout>
     );
 }
