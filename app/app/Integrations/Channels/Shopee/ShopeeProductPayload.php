@@ -37,7 +37,12 @@ final class ShopeeProductPayload
                 fn ($c) => array_filter([
                     // add_item dùng trường `logistic_id` (KHÔNG phải logistics_channel_id —
                     // đó là tên trường ở get_channel_list). Đã đối chiếu guide 211 + SDK shopeego.
-                    'logistic_id' => $c['logistics_channel_id'] ?? ($c['logistic_id'] ?? null),
+                    // ÉP KIỂU int: FE lưu id kênh dạng string (Checkbox.Group), Shopee Go backend
+                    // yêu cầu uint64 — gửi JSON string sẽ bị từ chối "cannot unmarshal string
+                    // into Go struct field LogisticInfoSet.logistic_info.logistic_id".
+                    'logistic_id' => isset($c['logistics_channel_id']) || isset($c['logistic_id'])
+                        ? (int) ($c['logistics_channel_id'] ?? $c['logistic_id'])
+                        : null,
                     'enabled' => (bool) $c['enabled'],
                     // is_free=true ⇒ người bán chịu phí ship. Gửi tường minh (doc guide 211 §6).
                     'is_free' => (bool) ($c['is_free'] ?? false),

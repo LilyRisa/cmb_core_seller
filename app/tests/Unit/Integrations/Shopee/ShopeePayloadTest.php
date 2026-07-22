@@ -54,6 +54,25 @@ class ShopeePayloadTest extends TestCase
         $this->assertArrayNotHasKey('normal_stock', $body);
     }
 
+    public function test_casts_string_logistics_channel_id_to_int(): void
+    {
+        // FE lưu id kênh dạng string (Checkbox.Group) — phải ép về int trước khi gửi Shopee,
+        // nếu không Go backend từ chối "cannot unmarshal string into ... logistic_id (uint64)".
+        $draft = new ListingDraftDTO(
+            title: 'Áo', description: 'x', categoryId: '100012', brandId: null,
+            attributes: [], media: [new MediaRefDTO('img-1', 'image_id')],
+            skus: [['seller_sku' => 'S1', 'price' => 10000, 'stock' => 5, 'sale_props' => []]],
+            logistics: [
+                'channels' => [['logistics_channel_id' => '5012', 'enabled' => true, 'fee_type' => 'FIXED_DEFAULT_PRICE']],
+            ],
+        );
+
+        $body = ShopeeProductPayload::addItem($draft);
+
+        $this->assertSame(5012, $body['logistic_info'][0]['logistic_id']);
+        $this->assertIsInt($body['logistic_info'][0]['logistic_id']);
+    }
+
     public function test_omits_pre_order_when_not_enabled(): void
     {
         $body = ShopeeProductPayload::addItem($this->makeDraft([
