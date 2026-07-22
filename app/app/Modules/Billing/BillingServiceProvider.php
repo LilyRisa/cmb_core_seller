@@ -10,6 +10,7 @@ use CMBcoreSeller\Modules\Billing\Contracts\AiUsageReporter;
 use CMBcoreSeller\Modules\Billing\Contracts\ChannelQuotaInspector;
 use CMBcoreSeller\Modules\Billing\Events\InvoicePaid;
 use CMBcoreSeller\Modules\Billing\Listeners\ActivateSubscription;
+use CMBcoreSeller\Modules\Billing\Listeners\OfferProTrialPopup;
 use CMBcoreSeller\Modules\Billing\Listeners\StartTrialSubscription;
 use CMBcoreSeller\Modules\Billing\Services\AiCreditService;
 use CMBcoreSeller\Modules\Billing\Services\AiUsageReportService;
@@ -54,6 +55,7 @@ class BillingServiceProvider extends ServiceProvider
         }
 
         Event::listen(TenantCreated::class, StartTrialSubscription::class);
+        Event::listen(TenantCreated::class, OfferProTrialPopup::class);
         Event::listen(InvoicePaid::class, ActivateSubscription::class);
 
         if ($this->app->runningInConsole()) {

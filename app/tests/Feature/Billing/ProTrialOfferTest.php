@@ -63,4 +63,24 @@ class ProTrialOfferTest extends TestCase
                 ->where('tenant_id', $tenant->getKey())->count(),
         );
     }
+
+    public function test_new_tenant_registration_creates_offer_row(): void
+    {
+        $this->seed(\CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder::class);
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'New User',
+            'email' => 'newuser@example.com',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+            'tenant_name' => 'New Shop',
+        ])->assertCreated();
+
+        $tenantId = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::where('name', 'New Shop')->value('id');
+        $this->assertNotNull($tenantId);
+
+        $offer = $this->offerFor($tenantId);
+        $this->assertNotNull($offer, 'pro_trial_offers row phải được tạo tự động khi tenant mới đăng ký.');
+        $this->assertNotNull($offer->offered_at);
+    }
 }
