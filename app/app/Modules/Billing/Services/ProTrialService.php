@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Billing\Services;
 
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\ProTrialGrant;
+use CMBcoreSeller\Modules\Billing\Models\ProTrialOffer;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Billing\Support\ProTrialSettings;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -48,6 +49,24 @@ class ProTrialService
             'eligible' => true, 'reason' => null, 'duration_days' => $days,
             'ends_preview' => Carbon::now()->addDays($days)->toIso8601String(),
         ];
+    }
+
+    /**
+     * Đánh dấu tenant thuộc diện được mời popup trải nghiệm Pro — gọi khi tenant vừa tạo
+     * (listener `OfferProTrialPopup` trên `TenantCreated`). Idempotent: retry không tạo trùng.
+     */
+    public function offer(int $tenantId): void
+    {
+        ProTrialOffer::query()->withoutGlobalScope(TenantScope::class)
+            ->firstOrCreate(['tenant_id' => $tenantId], ['offered_at' => now()]);
+    }
+
+    /** Tắt vĩnh viễn popup mời cho tenant này (bấm "Không, cảm ơn"). No-op an toàn nếu chưa từng offer. */
+    public function decline(int $tenantId): void
+    {
+        ProTrialOffer::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)
+            ->update(['declined_at' => now()]);
     }
 
     /**
