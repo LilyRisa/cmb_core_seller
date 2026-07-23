@@ -16,6 +16,7 @@ use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminTenantController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminUserController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminVoucherController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AnnouncementController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\GeneralNotificationPageViewController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -206,4 +207,16 @@ Route::middleware(['api', 'auth:sanctum', 'verified'])
         // SPEC 0039 — preset hình nền đang bật để người dùng chọn (giao diện v2).
         Route::get('desktop-backgrounds', [AdminDesktopBackgroundController::class, 'options'])
             ->middleware('throttle:60,1')->name('desktop-backgrounds.options');
+    });
+
+/*
+ |--------------------------------------------------------------------------
+ | User-facing: xem trang "Chung" đã nhận (Plan C, 2026-07-23) — /api/v1/notifications/general/{slug}
+ |--------------------------------------------------------------------------
+ | Cần tenant context để kiểm tra tenant hiện tại có nằm trong audience đã gửi không.
+ */
+Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
+    ->prefix('api/v1')->group(function () {
+        Route::get('notifications/general/{slug}', [GeneralNotificationPageViewController::class, 'show'])
+            ->middleware('throttle:60,1')->name('notifications.general.show');
     });
