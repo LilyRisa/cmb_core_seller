@@ -8,7 +8,9 @@ use CMBcoreSeller\Modules\Inventory\Events\StockPushed;
 use CMBcoreSeller\Modules\Marketing\Events\AdMonitorActionTaken;
 use CMBcoreSeller\Modules\Marketing\Events\AdMonitorThresholdApproaching;
 use CMBcoreSeller\Modules\Notifications\Console\Commands\BackfillNotificationCategory;
+use CMBcoreSeller\Modules\Notifications\Contracts\NotificationDispatcherContract;
 use CMBcoreSeller\Modules\Notifications\Http\Middleware\EnsureEmailVerified;
+use CMBcoreSeller\Modules\Notifications\Services\NotificationDispatcher;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnAdMonitorAction;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnAdMonitorApproaching;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnChannelReconnect;
@@ -41,6 +43,7 @@ class NotificationsServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../../../config/notifications.php', 'notifications');
+        $this->app->bind(NotificationDispatcherContract::class, NotificationDispatcher::class);
     }
 
     public function boot(): void

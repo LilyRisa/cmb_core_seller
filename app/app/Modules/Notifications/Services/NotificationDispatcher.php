@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Notifications\Services;
 
+use CMBcoreSeller\Modules\Notifications\Contracts\NotificationDispatcherContract;
 use CMBcoreSeller\Modules\Notifications\Events\NotificationCreated;
 use CMBcoreSeller\Modules\Notifications\Models\Notification;
 use CMBcoreSeller\Modules\Notifications\Support\NotificationType;
@@ -14,7 +15,7 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
  * tenant. Dedup theo `dedup_key`: chỉ bỏ qua khi user còn bản CHƯA đọc cùng key
  * (đã đọc rồi thì event mới được tạo lại — vd reconnect lặp sau khi user đã xử lý).
  */
-class NotificationDispatcher
+class NotificationDispatcher implements NotificationDispatcherContract
 {
     /**
      * @param  array{type:string,level?:string,title:string,body?:?string,action_url?:?string,data?:array<string,mixed>,dedup_key?:?string}  $payload
@@ -66,6 +67,16 @@ class NotificationDispatcher
             ->where('user_id', $userId)
             ->where('dedup_key', $dedupKey)
             ->whereNull('read_at')
+            ->exists();
+    }
+
+    /** Tenant này đã từng nhận thông báo `type`+`dedupKey` chưa (bất kể đã đọc)? Dùng để kiểm tra quyền xem (Plan C), không phải dedup gửi. */
+    public function hasReceived(int $tenantId, string $type, string $dedupKey): bool
+    {
+        return Notification::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)
+            ->where('type', $type)
+            ->where('dedup_key', $dedupKey)
             ->exists();
     }
 }

@@ -41,6 +41,9 @@ final class NotificationType
     /** Đẩy tồn kho lên sàn thất bại (Plan A, 2026-07-23). */
     public const INVENTORY_STOCK_PUSH_FAILED = 'inventory.stock_push_failed';
 
+    /** Trang "Chung" (ưu đãi/tin chung) admin gửi (Plan C, 2026-07-23). */
+    public const GENERAL_PAGE = 'general.page';
+
     /** @var array<string,string> type => category */
     private const CATEGORY_MAP = [
         self::ORDER_NEGATIVE_TOTAL => self::CATEGORY_ORDER,
@@ -50,6 +53,7 @@ final class NotificationType
         self::ADS_MONITOR_APPROACHING => self::CATEGORY_SYSTEM,
         self::ADS_MONITOR_ACTION => self::CATEGORY_SYSTEM,
         self::INVENTORY_STOCK_PUSH_FAILED => self::CATEGORY_SYSTEM,
+        self::GENERAL_PAGE => self::CATEGORY_GENERAL,
     ];
 
     /** Type không có trong map ⇒ mặc định 'system' (an toàn hơn 'order'/'general'). */
