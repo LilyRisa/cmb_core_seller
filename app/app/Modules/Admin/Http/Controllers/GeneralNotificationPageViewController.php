@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPage;
 use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPageView;
 use CMBcoreSeller\Modules\Notifications\Contracts\NotificationDispatcherContract;
 use CMBcoreSeller\Modules\Notifications\Support\NotificationType;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,14 +22,18 @@ class GeneralNotificationPageViewController extends Controller
 {
     public function __construct(private NotificationDispatcherContract $dispatcher) {}
 
-    public function show(Request $request, string $slug): JsonResponse
+    public function show(Request $request, string $slug, CurrentTenant $currentTenant): JsonResponse
     {
-        $tenantId = (int) $request->header('X-Tenant-Id');
+        $tenantId = $currentTenant->id();
         $userId = (int) $request->user()?->getKey();
 
         $page = GeneralNotificationPage::query()->where('slug', $slug)->first();
         if ($page === null) {
             return response()->json(['error' => ['code' => 'NOT_FOUND', 'message' => 'Không tìm thấy nội dung.']], 404);
+        }
+
+        if ($tenantId === null) {
+            return response()->json(['error' => ['code' => 'FORBIDDEN', 'message' => 'Bạn không có quyền xem nội dung này.']], 403);
         }
 
         $received = $this->dispatcher->hasReceived($tenantId, NotificationType::GENERAL_PAGE, 'general.page:'.$page->getKey());
