@@ -4,6 +4,7 @@ namespace Tests\Feature\Admin;
 
 use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPage;
 use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPageView;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -25,7 +26,7 @@ class GeneralNotificationPageModelTest extends TestCase
     public function test_slug_is_unique(): void
     {
         $this->makePage();
-        $this->expectException(\Illuminate\Database\QueryException::class);
+        $this->expectException(QueryException::class);
         $this->makePage();
     }
 
