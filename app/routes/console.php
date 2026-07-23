@@ -151,6 +151,10 @@ Schedule::job(new SyncUtilityTemplateStatus)->everyFifteenMinutes()->name('utili
 // hình với AI RAG vĩnh viễn nếu không ai lưu lại thủ công — dò + dispatch lại mỗi 15 phút.
 Schedule::command('messaging:kb-retry-stalled')->everyFifteenMinutes()->onOneServer()->withoutOverlapping();
 
+// --- Plan C (2026-07-23): trang thông báo chung admin soạn ---
+// Mỗi phút: quét trang "Chung" đã lên lịch mà thời điểm gửi đã tới, đưa vào hàng đợi gửi.
+Schedule::command('notifications:dispatch-scheduled-general-pages')->everyMinute()->onOneServer()->withoutOverlapping();
+
 // Every 5': poll chat for shops with messaging enabled on connectors that support polling
 // (currently Lazada — has no webhook for buyer messages; Shopee/TikTok/Facebook are webhook-only).
 // ShouldBeUnique(900s) guards against overlap between ticks.

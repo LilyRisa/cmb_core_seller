@@ -310,7 +310,9 @@ git commit -m "feat(admin): add general_notification_pages data model"
 - Test: `app/tests/Feature/Notifications/NotificationDispatcherContractTest.php`
 
 **Interfaces:**
-- Produces: interface `NotificationDispatcherContract::dispatch(int $tenantId, array $payload, ?array $userIds = null): int`, bound tới `NotificationDispatcher` trong container. `NotificationType::GENERAL_PAGE = 'general.page'` (category `general`).
+- Produces: interface `NotificationDispatcherContract::dispatch(int $tenantId, array $payload, ?array $userIds = null): int` + `::hasReceived(int $tenantId, string $type, string $dedupKey): bool`, bound tới `NotificationDispatcher` trong container. `NotificationType::GENERAL_PAGE = 'general.page'` (category `general`).
+
+> **Deviation approved trước khi triển khai:** plan gốc để Task 6 query thẳng `Notifications\Models\Notification` để kiểm tra tenant đã nhận trang chưa — vi phạm luật module (Admin không được `use` Model/Service nội bộ module khác, chỉ Contract/event). Đã sửa: thêm `hasReceived()` vào contract này, Task 6 gọi qua contract thay vì query Model trực tiếp.
 
 - [ ] **Step 1: Viết test trước**
 
@@ -337,6 +339,23 @@ class NotificationDispatcherContractTest extends TestCase
     public function test_general_page_type_maps_to_general_category(): void
     {
         $this->assertSame('general', NotificationType::categoryFor(NotificationType::GENERAL_PAGE));
+    }
+
+    public function test_has_received_true_after_dispatch_to_tenant(): void
+    {
+        $tenant = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::create(['name' => 'HasReceivedShop']);
+        $user = \CMBcoreSeller\Models\User::factory()->create();
+        $tenant->users()->attach($user->getKey(), ['role' => \CMBcoreSeller\Modules\Tenancy\Enums\Role::Owner->value]);
+        $tenantId = (int) $tenant->getKey();
+
+        $dispatcher = app(NotificationDispatcherContract::class);
+        $dispatcher->dispatch($tenantId, [
+            'type' => NotificationType::GENERAL_PAGE, 'title' => 'X', 'dedup_key' => 'general.page:999',
+        ]);
+
+        $this->assertTrue($dispatcher->hasReceived($tenantId, NotificationType::GENERAL_PAGE, 'general.page:999'));
+        $this->assertFalse($dispatcher->hasReceived($tenantId, NotificationType::GENERAL_PAGE, 'general.page:other'));
+        $this->assertFalse($dispatcher->hasReceived($tenantId + 999, NotificationType::GENERAL_PAGE, 'general.page:999'));
     }
 }
 ```
@@ -366,6 +385,9 @@ interface NotificationDispatcherContract
      * @return int số bản ghi đã tạo
      */
     public function dispatch(int $tenantId, array $payload, ?array $userIds = null): int;
+
+    /** Tenant này đã từng nhận thông báo `type`+`dedupKey` chưa? (bất kể đã đọc hay chưa — dùng để kiểm tra quyền xem, không phải dedup gửi). */
+    public function hasReceived(int $tenantId, string $type, string $dedupKey): bool;
 }
 ```
 
@@ -381,6 +403,20 @@ Sửa khai báo class:
 
 ```php
 class NotificationDispatcher implements NotificationDispatcherContract
+```
+
+Thêm method mới vào cuối class (cạnh `hasUnreadDuplicate()` hiện có — cùng pattern `withoutGlobalScope` vì chạy ngoài request context):
+
+```php
+    /** Tenant này đã từng nhận thông báo `type`+`dedupKey` chưa (bất kể đã đọc)? Dùng để kiểm tra quyền xem (Plan C), không phải dedup gửi. */
+    public function hasReceived(int $tenantId, string $type, string $dedupKey): bool
+    {
+        return Notification::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)
+            ->where('type', $type)
+            ->where('dedup_key', $dedupKey)
+            ->exists();
+    }
 ```
 
 - [ ] **Step 5: Bind contract trong provider**
@@ -1257,7 +1293,7 @@ git commit -m "feat(admin): send now + scheduled dispatch + view stats for gener
 - Test: `app/tests/Feature/Admin/GeneralNotificationPageViewControllerTest.php`
 
 **Interfaces:**
-- Produces: `GET /api/v1/notifications/general/{slug}` — `sanctum + verified + tenant`. Trả 403 nếu tenant hiện tại chưa từng nhận trang này (không có `app_notifications` row tương ứng); 410 nếu hết hạn; ghi `GeneralNotificationPageView` lần đầu xem (idempotent).
+- Produces: `GET /api/v1/notifications/general/{slug}` — `sanctum + verified + tenant`. Trả 403 nếu tenant hiện tại chưa từng nhận trang này (kiểm tra qua `NotificationDispatcherContract::hasReceived()`, Task 2 — không query thẳng Model của module Notifications); 410 nếu hết hạn; ghi `GeneralNotificationPageView` lần đầu xem (idempotent).
 
 - [ ] **Step 1: Viết test trước**
 
@@ -1374,19 +1410,22 @@ namespace CMBcoreSeller\Modules\Admin\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPage;
 use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPageView;
-use CMBcoreSeller\Modules\Notifications\Models\Notification;
-use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use CMBcoreSeller\Modules\Notifications\Contracts\NotificationDispatcherContract;
+use CMBcoreSeller\Modules\Notifications\Support\NotificationType;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
  * Plan C (2026-07-23) — tenant user xem 1 trang "Chung" đã nhận qua panel thông báo. Chỉ cho
- * xem nếu tenant hiện tại THẬT SỰ nằm trong audience đã gửi (kiểm tra qua đã tồn tại
- * `app_notifications` row `type=general.page` cho tenant này) — không public theo slug.
+ * xem nếu tenant hiện tại THẬT SỰ nằm trong audience đã gửi — kiểm tra qua
+ * {@see NotificationDispatcherContract::hasReceived()} (module Notifications), KHÔNG query
+ * thẳng Model của module khác (luật module dependency). Không public theo slug.
  */
 class GeneralNotificationPageViewController extends Controller
 {
+    public function __construct(private NotificationDispatcherContract $dispatcher) {}
+
     public function show(Request $request, string $slug): JsonResponse
     {
         $tenantId = (int) $request->header('X-Tenant-Id');
@@ -1397,10 +1436,7 @@ class GeneralNotificationPageViewController extends Controller
             return response()->json(['error' => ['code' => 'NOT_FOUND', 'message' => 'Không tìm thấy nội dung.']], 404);
         }
 
-        $received = Notification::withoutGlobalScope(TenantScope::class)
-            ->where('tenant_id', $tenantId)->where('type', 'general.page')
-            ->whereJsonContains('data->page_id', (int) $page->getKey())
-            ->exists();
+        $received = $this->dispatcher->hasReceived($tenantId, NotificationType::GENERAL_PAGE, 'general.page:'.$page->getKey());
         if (! $received) {
             return response()->json(['error' => ['code' => 'FORBIDDEN', 'message' => 'Bạn không có quyền xem nội dung này.']], 403);
         }

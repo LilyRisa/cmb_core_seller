@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminBroadcastController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminDashboardController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminDesktopBackgroundController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminGeneralNotificationPageController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminGrowthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminNotificationEmailController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminPlanController;
@@ -15,6 +16,7 @@ use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminTenantController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminUserController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminVoucherController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AnnouncementController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\GeneralNotificationPageViewController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -131,6 +133,15 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         Route::patch('announcements/{id}', [AdminAnnouncementController::class, 'update'])->whereNumber('id')->name('admin.announcements.update');
         Route::delete('announcements/{id}', [AdminAnnouncementController::class, 'destroy'])->whereNumber('id')->name('admin.announcements.destroy');
 
+        // --- General notification pages (Plan C, 2026-07-23) ---
+        Route::get('general-notification-pages', [AdminGeneralNotificationPageController::class, 'index'])->name('admin.general-notification-pages.index');
+        Route::post('general-notification-pages', [AdminGeneralNotificationPageController::class, 'store'])->name('admin.general-notification-pages.store');
+        Route::post('general-notification-pages/media', [AdminGeneralNotificationPageController::class, 'media'])->name('admin.general-notification-pages.media');
+        Route::patch('general-notification-pages/{id}', [AdminGeneralNotificationPageController::class, 'update'])->whereNumber('id')->name('admin.general-notification-pages.update');
+        Route::delete('general-notification-pages/{id}', [AdminGeneralNotificationPageController::class, 'destroy'])->whereNumber('id')->name('admin.general-notification-pages.destroy');
+        Route::post('general-notification-pages/{id}/send', [AdminGeneralNotificationPageController::class, 'send'])->whereNumber('id')->name('admin.general-notification-pages.send');
+        Route::get('general-notification-pages/{id}/stats', [AdminGeneralNotificationPageController::class, 'stats'])->whereNumber('id')->name('admin.general-notification-pages.stats');
+
         // SPEC 0039 — thư viện hình nền màn Desktop (giao diện v2).
         Route::get('desktop-backgrounds', [AdminDesktopBackgroundController::class, 'index'])->name('admin.desktop-backgrounds.index');
         Route::post('desktop-backgrounds', [AdminDesktopBackgroundController::class, 'store'])->name('admin.desktop-backgrounds.store');
@@ -196,4 +207,16 @@ Route::middleware(['api', 'auth:sanctum', 'verified'])
         // SPEC 0039 — preset hình nền đang bật để người dùng chọn (giao diện v2).
         Route::get('desktop-backgrounds', [AdminDesktopBackgroundController::class, 'options'])
             ->middleware('throttle:60,1')->name('desktop-backgrounds.options');
+    });
+
+/*
+ |--------------------------------------------------------------------------
+ | User-facing: xem trang "Chung" đã nhận (Plan C, 2026-07-23) — /api/v1/notifications/general/{slug}
+ |--------------------------------------------------------------------------
+ | Cần tenant context để kiểm tra tenant hiện tại có nằm trong audience đã gửi không.
+ */
+Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
+    ->prefix('api/v1')->group(function () {
+        Route::get('notifications/general/{slug}', [GeneralNotificationPageViewController::class, 'show'])
+            ->middleware('throttle:60,1')->name('notifications.general.show');
     });

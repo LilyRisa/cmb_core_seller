@@ -65,6 +65,7 @@ import { AccountingPostRulesPage } from '@/pages/settings/AccountingPostRulesPag
 import { SettingsShippingLabelsPage } from '@/pages/SettingsShippingLabelsPage';
 import { ShippingLabelEditorPage } from '@/pages/ShippingLabelEditorPage';
 import { SettingsAppearancePage } from '@/pages/SettingsAppearancePage';
+import { GeneralNotificationPage } from '@/pages/GeneralNotificationPage';
 import { ComingSoon } from '@/components/ComingSoon';
 
 const AdvancedImageEditorPage = React.lazy(() => import('@/pages/marketplace/AdvancedImageEditorPage'));
@@ -137,6 +138,7 @@ export function appRouteElements(): React.ReactNode {
             <Route path="accounting/reports" element={<AccountingReportsPage />} />
             <Route path="sync-logs" element={<SyncLogsPage />} />
             <Route path="support" element={<SupportCenterPage />} />
+            <Route path="notifications/general/:slug" element={<GeneralNotificationPage />} />
             <Route path="settings" element={<SettingsLayout />}>
                 <Route index element={<Navigate to="/settings/profile" replace />} />
                 <Route path="profile" element={<SettingsProfilePage />} />
