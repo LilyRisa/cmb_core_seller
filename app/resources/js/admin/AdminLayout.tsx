@@ -28,6 +28,7 @@ import {
     RiseOutlined,
     EyeOutlined,
     FunnelPlotOutlined,
+    FileTextOutlined,
 } from '@ant-design/icons';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminLogout, useAdminMe } from './lib/adminAuth';
@@ -60,6 +61,7 @@ const SIDEBAR: SidebarEntry[] = [
         items: [
             { key: '/admin/broadcasts', icon: <NotificationOutlined />, label: 'Broadcast' },
             { key: '/admin/announcements', icon: <SoundOutlined />, label: 'Popup thông báo' },
+            { key: '/admin/general-notification-pages', icon: <FileTextOutlined />, label: 'Thông báo chung' },
             { key: '/admin/desktop-backgrounds', icon: <PictureOutlined />, label: 'Hình nền Desktop' },
         ],
     },
