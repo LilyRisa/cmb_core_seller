@@ -138,6 +138,8 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         Route::post('general-notification-pages/media', [AdminGeneralNotificationPageController::class, 'media'])->name('admin.general-notification-pages.media');
         Route::patch('general-notification-pages/{id}', [AdminGeneralNotificationPageController::class, 'update'])->whereNumber('id')->name('admin.general-notification-pages.update');
         Route::delete('general-notification-pages/{id}', [AdminGeneralNotificationPageController::class, 'destroy'])->whereNumber('id')->name('admin.general-notification-pages.destroy');
+        Route::post('general-notification-pages/{id}/send', [AdminGeneralNotificationPageController::class, 'send'])->whereNumber('id')->name('admin.general-notification-pages.send');
+        Route::get('general-notification-pages/{id}/stats', [AdminGeneralNotificationPageController::class, 'stats'])->whereNumber('id')->name('admin.general-notification-pages.stats');
 
         // SPEC 0039 — thư viện hình nền màn Desktop (giao diện v2).
         Route::get('desktop-backgrounds', [AdminDesktopBackgroundController::class, 'index'])->name('admin.desktop-backgrounds.index');

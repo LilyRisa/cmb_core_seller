@@ -3,8 +3,11 @@
 namespace Tests\Feature\Admin;
 
 use CMBcoreSeller\Models\AdminUser;
+use CMBcoreSeller\Modules\Admin\Jobs\DispatchGeneralNotificationPageJob;
 use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPage;
+use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPageView;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class AdminGeneralNotificationPageControllerTest extends TestCase
@@ -77,5 +80,47 @@ class AdminGeneralNotificationPageControllerTest extends TestCase
         $this->actingAsAdmin()->deleteJson("/api/v1/admin/general-notification-pages/{$page->getKey()}")
             ->assertOk()->assertJsonPath('data.deleted', true);
         $this->assertDatabaseMissing('general_notification_pages', ['id' => $page->getKey()]);
+    }
+
+    public function test_send_dispatches_job_for_draft_page(): void
+    {
+        Queue::fake();
+        $page = GeneralNotificationPage::create([
+            'title' => 'T', 'slug' => 'to-send', 'body_html' => '<p>x</p>',
+            'audience_type' => 'all', 'status' => 'draft', 'created_by_user_id' => $this->admin->getKey(),
+        ]);
+
+        $this->actingAsAdmin()->postJson("/api/v1/admin/general-notification-pages/{$page->getKey()}/send")
+            ->assertOk()->assertJsonPath('data.dispatched', true);
+
+        Queue::assertPushed(DispatchGeneralNotificationPageJob::class, fn ($j) => $j->pageId === (int) $page->getKey());
+    }
+
+    public function test_send_rejects_already_sent_page(): void
+    {
+        Queue::fake();
+        $page = GeneralNotificationPage::create([
+            'title' => 'T', 'slug' => 'already-sent', 'body_html' => '<p>x</p>',
+            'audience_type' => 'all', 'status' => GeneralNotificationPage::STATUS_SENT, 'sent_at' => now(),
+            'created_by_user_id' => $this->admin->getKey(),
+        ]);
+
+        $this->actingAsAdmin()->postJson("/api/v1/admin/general-notification-pages/{$page->getKey()}/send")
+            ->assertStatus(422)->assertJsonPath('error.code', 'PAGE_ALREADY_SENT');
+        Queue::assertNotPushed(DispatchGeneralNotificationPageJob::class);
+    }
+
+    public function test_stats_returns_view_count(): void
+    {
+        $page = GeneralNotificationPage::create([
+            'title' => 'T', 'slug' => 'stats-page', 'body_html' => '<p>x</p>',
+            'audience_type' => 'all', 'status' => GeneralNotificationPage::STATUS_SENT, 'sent_at' => now(),
+            'created_by_user_id' => $this->admin->getKey(),
+        ]);
+        GeneralNotificationPageView::create(['page_id' => $page->getKey(), 'tenant_id' => 1, 'user_id' => 1, 'viewed_at' => now()]);
+        GeneralNotificationPageView::create(['page_id' => $page->getKey(), 'tenant_id' => 2, 'user_id' => 2, 'viewed_at' => now()]);
+
+        $this->actingAsAdmin()->getJson("/api/v1/admin/general-notification-pages/{$page->getKey()}/stats")
+            ->assertOk()->assertJsonPath('data.view_count', 2);
     }
 }

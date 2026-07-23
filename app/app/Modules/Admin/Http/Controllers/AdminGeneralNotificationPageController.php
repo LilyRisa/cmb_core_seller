@@ -3,7 +3,9 @@
 namespace CMBcoreSeller\Modules\Admin\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Admin\Jobs\DispatchGeneralNotificationPageJob;
 use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPage;
+use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPageView;
 use CMBcoreSeller\Modules\Admin\Services\GeneralNotificationPageService;
 use CMBcoreSeller\Support\HtmlSanitizer;
 use CMBcoreSeller\Support\MediaUploader;
@@ -67,6 +69,29 @@ class AdminGeneralNotificationPageController extends Controller
         GeneralNotificationPage::query()->findOrFail((int) $id)->delete();
 
         return response()->json(['data' => ['deleted' => true]]);
+    }
+
+    public function send(string $id): JsonResponse
+    {
+        $page = GeneralNotificationPage::query()->findOrFail((int) $id);
+        if ($page->status === GeneralNotificationPage::STATUS_SENT) {
+            return response()->json(['error' => ['code' => 'PAGE_ALREADY_SENT', 'message' => 'Trang đã gửi rồi.']], 422);
+        }
+        DispatchGeneralNotificationPageJob::dispatch((int) $page->getKey());
+
+        return response()->json(['data' => ['dispatched' => true]]);
+    }
+
+    public function stats(string $id): JsonResponse
+    {
+        $page = GeneralNotificationPage::query()->findOrFail((int) $id);
+        $viewCount = GeneralNotificationPageView::query()->where('page_id', $page->getKey())->count();
+        $audienceTenantCount = count($this->service->resolveTenantIds($page));
+
+        return response()->json(['data' => [
+            'view_count' => $viewCount,
+            'audience_tenant_count' => $audienceTenantCount,
+        ]]);
     }
 
     /** Upload ảnh bìa → R2 (thư mục general-notification-pages, non-tenant). */
