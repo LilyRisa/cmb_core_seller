@@ -199,11 +199,11 @@
 
 | Method | Path | Auth | Response |
 |---|---|---|---|
-| GET | `/api/v1/notifications?status=unread&limit=30` | sanctum + tenant | `{ data:[{ id, type, level, title, body, action_url, data, is_read, read_at, created_at }], meta:{ unread_count } }`. `status=unread` lọc chưa đọc. |
+| GET | `/api/v1/notifications?status=unread&category=order&limit=30` | sanctum + tenant | `{ data:[{ id, type, category, level, title, body, action_url, data, is_read, read_at, created_at }], meta:{ unread_count, unread_count_by_category:{order,system,general} } }`. `status=unread` lọc chưa đọc; `category` lọc theo tab panel FE (order\|system\|general), bỏ trống = tất cả. |
 | POST | `/api/v1/notifications/{id}/read` | sanctum + tenant | `{ data:{ unread_count } }`. Đánh dấu đã đọc 1 (chỉ notif của chính mình; của user khác ⇒ 404). |
 | POST | `/api/v1/notifications/read-all` | sanctum + tenant | `{ data:{ unread_count: 0 } }`. |
 
-Loại (`type`) v1: `channel.reconnect_needed`, `order.negative_total`, `order.cancelled`, `order.return_new`, `ads.monitor_approaching`, `ads.monitor_action` — sinh tự động từ domain event (xem SPEC 0036 §4). `level ∈ {info,warning,critical}`.
+Loại (`type`) v1: `channel.reconnect_needed`, `order.negative_total`, `order.cancelled`, `order.return_new`, `ads.monitor_approaching`, `ads.monitor_action`, `inventory.stock_push_failed` — sinh tự động từ domain event (xem SPEC 0036 §4). `level ∈ {info,warning,critical}`. `category ∈ {order,system,general}` quyết định tab hiển thị ở panel FE (Plan A, 2026-07-23) — suy tự động từ `type` qua `NotificationType::categoryFor()`.
 
 ## Quảng cáo (Marketing/Ads — SPEC 2026-06-04 FB, SPEC 2026-06-09 TikTok)
 

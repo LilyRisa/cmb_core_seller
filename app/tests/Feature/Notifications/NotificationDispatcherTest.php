@@ -98,4 +98,36 @@ class NotificationDispatcherTest extends TestCase
         $this->assertInstanceOf(PrivateChannel::class, $channels[0]);
         $this->assertSame('private-tenant.7.notifications.42', $channels[0]->name);
     }
+
+    public function test_dispatch_auto_assigns_category_from_type(): void
+    {
+        $tenant = $this->makeTenantWithUsers(1);
+
+        app(NotificationDispatcher::class)->dispatch((int) $tenant->getKey(), [
+            'type' => 'order.cancelled',
+            'title' => 'Đơn đã hủy',
+        ]);
+
+        $n = Notification::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->getKey())->first();
+        $this->assertSame('order', $n->category);
+    }
+
+    public function test_dispatch_ignores_category_in_payload_and_derives_from_type(): void
+    {
+        $tenant = $this->makeTenantWithUsers(1);
+
+        // Dù payload cố tình truyền category sai, dispatcher vẫn tự suy ra đúng từ type
+        // (category không phải input tin cậy từ listener — tránh 6 listener hiện có phải
+        // sửa để truyền đúng field này).
+        app(NotificationDispatcher::class)->dispatch((int) $tenant->getKey(), [
+            'type' => 'channel.reconnect_needed',
+            'title' => 'X',
+            'category' => 'order',
+        ]);
+
+        $n = Notification::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->getKey())->first();
+        $this->assertSame('system', $n->category);
+    }
 }

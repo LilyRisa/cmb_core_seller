@@ -4,8 +4,10 @@ namespace CMBcoreSeller\Modules\Notifications;
 
 use CMBcoreSeller\Modules\Billing\Events\ProTrialActivated;
 use CMBcoreSeller\Modules\Channels\Events\ChannelAccountNeedsReconnect;
+use CMBcoreSeller\Modules\Inventory\Events\StockPushed;
 use CMBcoreSeller\Modules\Marketing\Events\AdMonitorActionTaken;
 use CMBcoreSeller\Modules\Marketing\Events\AdMonitorThresholdApproaching;
+use CMBcoreSeller\Modules\Notifications\Console\Commands\BackfillNotificationCategory;
 use CMBcoreSeller\Modules\Notifications\Http\Middleware\EnsureEmailVerified;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnAdMonitorAction;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnAdMonitorApproaching;
@@ -13,6 +15,7 @@ use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnChannelReconnect;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnNegativeOrder;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnOrderCancelled;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnReturnNew;
+use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnStockPushFailed;
 use CMBcoreSeller\Modules\Notifications\Listeners\SendProTrialActivatedEmail;
 use CMBcoreSeller\Modules\Notifications\Listeners\SendWelcomeEmailOnVerified;
 use CMBcoreSeller\Modules\Orders\Events\OrderStatusChanged;
@@ -66,5 +69,10 @@ class NotificationsServiceProvider extends ServiceProvider
         Event::listen(ReturnStatusChanged::class, NotifyOnReturnNew::class);
         Event::listen(AdMonitorThresholdApproaching::class, NotifyOnAdMonitorApproaching::class);
         Event::listen(AdMonitorActionTaken::class, NotifyOnAdMonitorAction::class);
+        Event::listen(StockPushed::class, NotifyOnStockPushFailed::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([BackfillNotificationCategory::class]);
+        }
     }
 }

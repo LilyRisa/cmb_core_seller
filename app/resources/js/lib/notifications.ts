@@ -12,9 +12,12 @@ import { getEcho, realtimeEnabled } from '@/lib/echo';
  */
 export type NotificationLevel = 'info' | 'warning' | 'critical';
 
+export type NotificationCategory = 'order' | 'system' | 'general';
+
 export interface AppNotification {
     id: number;
     type: string;
+    category: NotificationCategory;
     level: NotificationLevel;
     title: string;
     body: string | null;
@@ -27,7 +30,7 @@ export interface AppNotification {
 
 interface NotificationsResponse {
     data: AppNotification[];
-    meta: { unread_count: number };
+    meta: { unread_count: number; unread_count_by_category: Record<NotificationCategory, number> };
 }
 
 function useScopedApi() {
@@ -35,13 +38,14 @@ function useScopedApi() {
     return useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
 }
 
-/** Danh sách + số chưa đọc cho chuông. Poll fallback khi Reverb tắt. */
-export function useNotifications() {
+/** Danh sách + số chưa đọc cho chuông. `category` lọc theo tab panel FE. Poll fallback khi Reverb tắt. */
+export function useNotifications(category?: NotificationCategory) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
-        queryKey: ['notifications', 'list', tenantId],
-        queryFn: async () => (await api!.get<NotificationsResponse>('/notifications', { params: { limit: 30 } })).data,
+        queryKey: ['notifications', 'list', tenantId, category ?? 'all'],
+        queryFn: async () =>
+            (await api!.get<NotificationsResponse>('/notifications', { params: { limit: 30, category } })).data,
         enabled: api != null,
         // Reverb đẩy realtime ⇒ poll thưa; tắt Reverb ⇒ poll dày hơn để chuông không "đứng".
         refetchInterval: (query) => (query.state.status === 'error' ? false : (realtimeEnabled() ? 60_000 : 30_000)),

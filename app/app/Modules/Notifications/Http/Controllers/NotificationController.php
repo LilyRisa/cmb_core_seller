@@ -9,13 +9,19 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Chuông thông báo in-app của user trong tenant hiện tại (SPEC 0036). TenantScope + filter
- * `user_id` đảm bảo chỉ thấy thông báo của CHÍNH MÌNH trong tenant hiện tại. Controller
- * mỏng — không cần Service riêng (logic đọc đơn giản).
+ * Chuông thông báo in-app của user trong tenant hiện tại (SPEC 0036, Plan A mở rộng
+ * category 2026-07-23). TenantScope + filter `user_id` đảm bảo chỉ thấy thông báo của
+ * CHÍNH MÌNH trong tenant hiện tại. Controller mỏng — không cần Service riêng.
  */
 class NotificationController extends Controller
 {
-    /** Danh sách (mới nhất trước); `?status=unread` lọc chưa đọc. `meta.unread_count` cho badge. */
+    private const CATEGORIES = ['order', 'system', 'general'];
+
+    /**
+     * Danh sách (mới nhất trước); `?status=unread` lọc chưa đọc, `?category=` lọc theo
+     * tab panel FE. `meta.unread_count` = tổng (không lọc); `meta.unread_count_by_category`
+     * luôn trả đủ 3 khóa để FE hiện badge riêng từng tab.
+     */
     public function index(Request $request): JsonResponse
     {
         $userId = (int) $request->user()?->getKey();
@@ -25,11 +31,18 @@ class NotificationController extends Controller
         if ($request->query('status') === 'unread') {
             $query->whereNull('read_at');
         }
+        $category = $request->query('category');
+        if (is_string($category) && in_array($category, self::CATEGORIES, true)) {
+            $query->where('category', $category);
+        }
         $items = $query->latest('id')->limit($limit)->get();
 
         return response()->json([
             'data' => NotificationResource::collection($items)->resolve(),
-            'meta' => ['unread_count' => $this->unreadCount($userId)],
+            'meta' => [
+                'unread_count' => $this->unreadCount($userId),
+                'unread_count_by_category' => $this->unreadCountByCategory($userId),
+            ],
         ]);
     }
 
@@ -58,5 +71,20 @@ class NotificationController extends Controller
     private function unreadCount(int $userId): int
     {
         return Notification::query()->where('user_id', $userId)->whereNull('read_at')->count();
+    }
+
+    /** @return array{order:int,system:int,general:int} */
+    private function unreadCountByCategory(int $userId): array
+    {
+        $counts = Notification::query()
+            ->where('user_id', $userId)->whereNull('read_at')
+            ->selectRaw('category, count(*) as c')->groupBy('category')
+            ->pluck('c', 'category');
+
+        return [
+            'order' => (int) ($counts['order'] ?? 0),
+            'system' => (int) ($counts['system'] ?? 0),
+            'general' => (int) ($counts['general'] ?? 0),
+        ];
     }
 }

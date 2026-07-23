@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Notifications\Services;
 
 use CMBcoreSeller\Modules\Notifications\Events\NotificationCreated;
 use CMBcoreSeller\Modules\Notifications\Models\Notification;
+use CMBcoreSeller\Modules\Notifications\Support\NotificationType;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 
@@ -41,6 +42,7 @@ class NotificationDispatcher
                 'tenant_id' => $tenantId,
                 'user_id' => $userId,
                 'type' => $payload['type'],
+                'category' => NotificationType::categoryFor($payload['type']),
                 'level' => $payload['level'] ?? Notification::LEVEL_INFO,
                 'title' => $payload['title'],
                 'body' => $payload['body'] ?? null,

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Button, Empty, List, Popover, Spin, Tooltip, Typography } from 'antd';
+import { Badge, Button, Empty, List, Popover, Spin, Tabs, Tooltip, Typography } from 'antd';
 import {
     BellOutlined,
     CheckOutlined,
@@ -13,6 +13,7 @@ import {
     useMarkNotificationRead,
     useNotifications,
     type AppNotification,
+    type NotificationCategory,
     type NotificationLevel,
 } from '@/lib/notifications';
 
@@ -36,30 +37,53 @@ function timeAgo(iso: string | null): string {
     return `${d} ngày trước`;
 }
 
+const TABS: { key: NotificationCategory; label: string }[] = [
+    { key: 'order', label: 'Đơn hàng' },
+    { key: 'system', label: 'Hệ thống' },
+    { key: 'general', label: 'Chung' },
+];
+
+function TabLabel({ label, unread }: { label: string; unread: number }) {
+    return (
+        <span>
+            {label}
+            {unread > 0 ? <Badge count={unread} size="small" overflowCount={99} style={{ marginLeft: 6 }} /> : null}
+        </span>
+    );
+}
+
 /**
- * Chuông thông báo in-app (SPEC 0036) — Badge số chưa đọc + Popover danh sách. Click 1
- * mục → đánh dấu đã đọc + điều hướng `action_url`. Realtime do `useNotificationsRealtime`
- * (mount ở AppLayout) lo; component này chỉ đọc cache + thao tác đọc.
+ * Chuông thông báo in-app (SPEC 0036, Plan A mở rộng 3 tab 2026-07-23) — Badge số chưa đọc
+ * tổng + Popover danh sách 3 tab (Đơn hàng/Hệ thống/Chung). Click 1 mục → đánh dấu đã đọc +
+ * điều hướng `action_url` (tab Chung mở tab trình duyệt mới, còn lại điều hướng cùng tab).
+ * Realtime do `useNotificationsRealtime` (mount ở AppLayout) lo; component này chỉ đọc
+ * cache + thao tác đọc.
  */
 export function NotificationBell() {
     const navigate = useNavigate();
     const [open, setOpen] = useState(false);
-    const { data, isLoading } = useNotifications();
+    const [activeTab, setActiveTab] = useState<NotificationCategory>('order');
+    const { data, isLoading } = useNotifications(activeTab);
     const markRead = useMarkNotificationRead();
     const markAll = useMarkAllNotificationsRead();
 
     const items = data?.data ?? [];
     const unread = data?.meta.unread_count ?? 0;
+    const unreadByCategory = data?.meta.unread_count_by_category;
 
     const onClickItem = (n: AppNotification) => {
         if (!n.is_read) markRead.mutate(n.id);
+        if (n.category === 'general') {
+            if (n.action_url) window.open(n.action_url, '_blank');
+            return;
+        }
         setOpen(false);
         if (n.action_url) navigate(n.action_url);
     };
 
     const content = (
-        <div style={{ width: 360, maxWidth: '90vw' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 4px 8px' }}>
+        <div style={{ width: 380, maxWidth: '90vw' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 4px 0' }}>
                 <Typography.Text strong>Thông báo</Typography.Text>
                 <Button
                     type="link" size="small" icon={<CheckOutlined />}
@@ -69,6 +93,15 @@ export function NotificationBell() {
                     Đọc tất cả
                 </Button>
             </div>
+            <Tabs
+                size="small"
+                activeKey={activeTab}
+                onChange={(key) => setActiveTab(key as NotificationCategory)}
+                items={TABS.map((t) => ({
+                    key: t.key,
+                    label: <TabLabel label={t.label} unread={unreadByCategory?.[t.key] ?? 0} />,
+                }))}
+            />
             {isLoading ? (
                 <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
             ) : items.length === 0 ? (

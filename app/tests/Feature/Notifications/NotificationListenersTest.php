@@ -5,15 +5,18 @@ namespace Tests\Feature\Notifications;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Events\ChannelAccountNeedsReconnect;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Inventory\Events\StockPushed;
 use CMBcoreSeller\Modules\Marketing\Events\AdMonitorThresholdApproaching;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnAdMonitorApproaching;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnChannelReconnect;
 use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnNegativeOrder;
+use CMBcoreSeller\Modules\Notifications\Listeners\NotifyOnStockPushFailed;
 use CMBcoreSeller\Modules\Notifications\Models\Notification;
 use CMBcoreSeller\Modules\Notifications\Services\NotificationDispatcher;
 use CMBcoreSeller\Modules\Notifications\Support\NotificationType;
 use CMBcoreSeller\Modules\Orders\Events\OrderUpserted;
 use CMBcoreSeller\Modules\Orders\Models\Order;
+use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -94,5 +97,36 @@ class NotificationListenersTest extends TestCase
         $this->assertSame(NotificationType::ADS_MONITOR_APPROACHING, $n->type);
         $this->assertStringContainsString('Camp Tết', $n->title);
         $this->assertSame('ads.approaching:1', $n->dedup_key);
+    }
+
+    public function test_stock_push_failed_creates_system_notification(): void
+    {
+        $listing = (new ChannelListing)->forceFill([
+            'id' => 55, 'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => 1,
+            'seller_sku' => 'SKU-X', 'title' => 'Áo thun nam', 'sync_error' => 'Sàn từ chối: hết hạn mức API',
+        ]);
+
+        (new NotifyOnStockPushFailed(app(NotificationDispatcher::class)))
+            ->handle(new StockPushed($listing, 10, false));
+
+        $n = $this->notifications()->first();
+        $this->assertSame(NotificationType::INVENTORY_STOCK_PUSH_FAILED, $n->type);
+        $this->assertSame('system', $n->category);
+        $this->assertSame('warning', $n->level);
+        $this->assertStringContainsString('Áo thun nam', $n->title);
+        $this->assertSame('inventory.stock_push_failed:55', $n->dedup_key);
+    }
+
+    public function test_stock_push_success_creates_nothing(): void
+    {
+        $listing = (new ChannelListing)->forceFill([
+            'id' => 56, 'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => 1,
+            'seller_sku' => 'SKU-Y', 'title' => 'Quần jean',
+        ]);
+
+        (new NotifyOnStockPushFailed(app(NotificationDispatcher::class)))
+            ->handle(new StockPushed($listing, 10, true));
+
+        $this->assertCount(0, $this->notifications());
     }
 }

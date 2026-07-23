@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property int $tenant_id
  * @property int $user_id
  * @property string $type
+ * @property string $category
  * @property string $level
  * @property string $title
  * @property string|null $body
@@ -40,7 +41,7 @@ class Notification extends Model
     protected $table = 'app_notifications';
 
     protected $fillable = [
-        'tenant_id', 'user_id', 'type', 'level', 'title', 'body', 'action_url', 'data', 'dedup_key', 'read_at',
+        'tenant_id', 'user_id', 'type', 'category', 'level', 'title', 'body', 'action_url', 'data', 'dedup_key', 'read_at',
     ];
 
     protected $casts = [
