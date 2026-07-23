@@ -24,6 +24,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $expires_at
  * @property Carbon|null $sent_at
  * @property int $created_by_user_id
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 class GeneralNotificationPage extends Model
 {

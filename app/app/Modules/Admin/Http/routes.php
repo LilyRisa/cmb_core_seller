@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminBroadcastController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminDashboardController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminDesktopBackgroundController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminGeneralNotificationPageController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminGrowthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminNotificationEmailController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminPlanController;
@@ -130,6 +131,13 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         Route::post('announcements/media', [AdminAnnouncementController::class, 'media'])->name('admin.announcements.media');
         Route::patch('announcements/{id}', [AdminAnnouncementController::class, 'update'])->whereNumber('id')->name('admin.announcements.update');
         Route::delete('announcements/{id}', [AdminAnnouncementController::class, 'destroy'])->whereNumber('id')->name('admin.announcements.destroy');
+
+        // --- General notification pages (Plan C, 2026-07-23) ---
+        Route::get('general-notification-pages', [AdminGeneralNotificationPageController::class, 'index'])->name('admin.general-notification-pages.index');
+        Route::post('general-notification-pages', [AdminGeneralNotificationPageController::class, 'store'])->name('admin.general-notification-pages.store');
+        Route::post('general-notification-pages/media', [AdminGeneralNotificationPageController::class, 'media'])->name('admin.general-notification-pages.media');
+        Route::patch('general-notification-pages/{id}', [AdminGeneralNotificationPageController::class, 'update'])->whereNumber('id')->name('admin.general-notification-pages.update');
+        Route::delete('general-notification-pages/{id}', [AdminGeneralNotificationPageController::class, 'destroy'])->whereNumber('id')->name('admin.general-notification-pages.destroy');
 
         // SPEC 0039 — thư viện hình nền màn Desktop (giao diện v2).
         Route::get('desktop-backgrounds', [AdminDesktopBackgroundController::class, 'index'])->name('admin.desktop-backgrounds.index');
