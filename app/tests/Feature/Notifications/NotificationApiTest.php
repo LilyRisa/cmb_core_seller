@@ -38,12 +38,13 @@ class NotificationApiTest extends TestCase
         return ['X-Tenant-Id' => (string) $this->tenant->getKey()];
     }
 
-    private function makeNotif(int $userId, bool $read = false): Notification
+    private function makeNotif(int $userId, bool $read = false, string $type = 'order.cancelled', string $category = 'order'): Notification
     {
         return Notification::create([
             'tenant_id' => $this->tenant->getKey(),
             'user_id' => $userId,
-            'type' => 'order.cancelled',
+            'type' => $type,
+            'category' => $category,
             'level' => 'info',
             'title' => 'Đơn đã hủy',
             'read_at' => $read ? now() : null,
@@ -91,5 +92,32 @@ class NotificationApiTest extends TestCase
         $this->actingAs($this->owner)->withHeaders($this->h())
             ->postJson("/api/v1/notifications/{$foreign->getKey()}/read")
             ->assertNotFound();
+    }
+
+    public function test_index_filters_by_category(): void
+    {
+        $this->makeNotif($this->owner->getKey(), category: 'order');
+        $this->makeNotif($this->owner->getKey(), type: 'channel.reconnect_needed', category: 'system');
+
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/notifications?category=system');
+
+        $res->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.category', 'system');
+    }
+
+    public function test_index_returns_unread_count_by_category(): void
+    {
+        $this->makeNotif($this->owner->getKey(), category: 'order');
+        $this->makeNotif($this->owner->getKey(), category: 'order', read: true);
+        $this->makeNotif($this->owner->getKey(), type: 'channel.reconnect_needed', category: 'system');
+
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/notifications');
+
+        $res->assertOk()
+            ->assertJsonPath('meta.unread_count_by_category.order', 1)
+            ->assertJsonPath('meta.unread_count_by_category.system', 1)
+            ->assertJsonPath('meta.unread_count_by_category.general', 0)
+            ->assertJsonPath('meta.unread_count', 2);
     }
 }
