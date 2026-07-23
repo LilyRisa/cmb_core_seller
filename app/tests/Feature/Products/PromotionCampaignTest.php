@@ -6,6 +6,7 @@ namespace Tests\Feature\Products;
 
 use CMBcoreSeller\Integrations\Channels\Contracts\ProductPublishingConnector;
 use CMBcoreSeller\Integrations\Channels\Contracts\PromotionConnector;
+use CMBcoreSeller\Integrations\Channels\DTO\PromotionResultDTO;
 use CMBcoreSeller\Integrations\Channels\PublisherRegistry;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
@@ -16,6 +17,7 @@ use CMBcoreSeller\Modules\Products\Services\PromotionService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
@@ -38,6 +40,8 @@ class PromotionCampaignTest extends TestCase
 
     private int $accountId;
 
+    private $conn;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -57,6 +61,7 @@ class PromotionCampaignTest extends TestCase
         $cls = $conn::class;
         $this->app->instance($cls, $conn);
         app(PublisherRegistry::class)->register('stub', $cls);
+        $this->conn = $conn;
 
         $account = ChannelAccount::create([
             'tenant_id' => $this->tenant->getKey(), 'provider' => 'stub',
@@ -196,6 +201,28 @@ class PromotionCampaignTest extends TestCase
         $this->actingAs($this->owner)->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
             ->getJson("/api/v1/channel-promotions?channel_account_id={$this->accountId}&tab=pushed")
             ->assertOk()->assertJsonCount(1, 'data');
+    }
+
+    public function test_push_job_reaches_live_when_worker_has_no_request_bound_tenant(): void
+    {
+        // Reproduces prod bug: campaign id=21 (2026-07-23) stuck in draft forever, no error.
+        // Queue worker runs with no request-bound CurrentTenant — same as real Horizon workers.
+        $id = $this->makeDraft('fixed');
+        $this->postAs("/api/v1/channel-promotions/{$id}/skus", [
+            'skus' => [['external_product_id' => 'p1', 'external_sku_id' => 's1', 'base_price' => 100000, 'discount_value' => 70000]],
+        ])->assertOk();
+
+        $this->conn->shouldReceive('createPromotion')
+            ->andReturn(new PromotionResultDTO('ext-promo-1'));
+        $this->conn->shouldReceive('putPromotionItems')->andReturnNull();
+
+        app(CurrentTenant::class)->clear();
+
+        (new PushPromotionJob($id))->handle(app(PromotionService::class), app(CurrentTenant::class));
+
+        $promo = ChannelPromotion::withoutGlobalScope(TenantScope::class)->findOrFail($id);
+        $this->assertSame(ChannelPromotion::STATUS_LIVE, $promo->status, 'Job phải hoàn tất push, không được kẹt ở draft.');
+        $this->assertSame('ext-promo-1', $promo->external_promotion_id);
     }
 
     public function test_lazada_listing_special_price_marks_sku_busy_with_discount(): void

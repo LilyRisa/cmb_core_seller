@@ -8,6 +8,8 @@ use CMBcoreSeller\Integrations\Channels\DTO\PromotionItemDTO;
 use CMBcoreSeller\Modules\Products\Models\ChannelPromotion;
 use CMBcoreSeller\Modules\Products\Models\ChannelPromotionSku;
 use CMBcoreSeller\Modules\Products\Services\PromotionService;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -41,10 +43,29 @@ class PushPromotionJob implements ShouldBeUnique, ShouldQueue
         return "promo-push:{$this->promotionId}";
     }
 
-    public function handle(PromotionService $svc): void
+    public function handle(PromotionService $svc, CurrentTenant $tenant): void
     {
-        $promo = ChannelPromotion::withoutGlobalScope(TenantScope::class)->with('skus')->find($this->promotionId);
-        if (! $promo || $promo->skus->isEmpty()) {
+        // The queue worker runs without a request-bound tenant, so the global TenantScope
+        // would constrain every query (including the `skus` eager load and ChannelAccount
+        // lookup in authFor()) to tenant_id=0 and silently see nothing. Load the promotion
+        // past the scope to discover its tenant, then run the whole push AS that tenant so
+        // every tenant-scoped read below resolves correctly. Mirrors PushListingJob.
+        $promo = ChannelPromotion::withoutGlobalScope(TenantScope::class)->find($this->promotionId);
+        if ($promo === null) {
+            return;
+        }
+        $shop = Tenant::query()->find($promo->tenant_id);
+        if ($shop === null) {
+            return;
+        }
+
+        $tenant->runAs($shop, fn () => $this->push($svc, $promo));
+    }
+
+    private function push(PromotionService $svc, ChannelPromotion $promo): void
+    {
+        $promo->loadMissing('skus');
+        if ($promo->skus->isEmpty()) {
             return;
         }
 
