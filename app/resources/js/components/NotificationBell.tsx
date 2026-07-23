@@ -38,9 +38,9 @@ function timeAgo(iso: string | null): string {
 }
 
 const TABS: { key: NotificationCategory; label: string }[] = [
-    { key: 'order', label: 'Đơn hàng' },
-    { key: 'system', label: 'Hệ thống' },
     { key: 'general', label: 'Chung' },
+    { key: 'system', label: 'Hệ thống' },
+    { key: 'order', label: 'Đơn hàng' },
 ];
 
 function TabLabel({ label, unread }: { label: string; unread: number }) {
@@ -54,7 +54,7 @@ function TabLabel({ label, unread }: { label: string; unread: number }) {
 
 /**
  * Chuông thông báo in-app (SPEC 0036, Plan A mở rộng 3 tab 2026-07-23) — Badge số chưa đọc
- * tổng + Popover danh sách 3 tab (Đơn hàng/Hệ thống/Chung). Click 1 mục → đánh dấu đã đọc +
+ * tổng + Popover danh sách 3 tab (Chung/Hệ thống/Đơn hàng). Click 1 mục → đánh dấu đã đọc +
  * điều hướng `action_url` (tab Chung mở tab trình duyệt mới, còn lại điều hướng cùng tab).
  * Realtime do `useNotificationsRealtime` (mount ở AppLayout) lo; component này chỉ đọc
  * cache + thao tác đọc.
