@@ -2,10 +2,12 @@
 
 namespace CMBcoreSeller\Modules\Notifications\Contracts;
 
+use CMBcoreSeller\Modules\Notifications\Services\NotificationDispatcher;
+
 /**
  * Đầu mối tạo/fan-out thông báo in-app cho các module khác (Plan C, 2026-07-23) — theo luật
  * module: chỉ phụ thuộc Contract, không chạm Services/ nội bộ. Cài đặt:
- * {@see \CMBcoreSeller\Modules\Notifications\Services\NotificationDispatcher}.
+ * {@see NotificationDispatcher}.
  */
 interface NotificationDispatcherContract
 {
