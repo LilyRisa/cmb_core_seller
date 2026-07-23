@@ -203,7 +203,7 @@
 | POST | `/api/v1/notifications/{id}/read` | sanctum + tenant | `{ data:{ unread_count } }`. Đánh dấu đã đọc 1 (chỉ notif của chính mình; của user khác ⇒ 404). |
 | POST | `/api/v1/notifications/read-all` | sanctum + tenant | `{ data:{ unread_count: 0 } }`. |
 
-Loại (`type`) v1: `channel.reconnect_needed`, `order.negative_total`, `order.cancelled`, `order.return_new`, `ads.monitor_approaching`, `ads.monitor_action`, `inventory.stock_push_failed` — sinh tự động từ domain event (xem SPEC 0036 §4). `level ∈ {info,warning,critical}`. `category ∈ {order,system,general}` quyết định tab hiển thị ở panel FE (Plan A, 2026-07-23) — suy tự động từ `type` qua `NotificationType::categoryFor()`.
+Loại (`type`) v1: `channel.reconnect_needed`, `order.negative_total`, `order.cancelled`, `order.return_new`, `ads.monitor_approaching`, `ads.monitor_action`, `inventory.stock_push_failed`, `general.page` — sinh tự động từ domain event (xem SPEC 0036 §4) hoặc do admin gửi (`general.page`, Plan C). `level ∈ {info,warning,critical}`. `category ∈ {order,system,general}` quyết định tab hiển thị ở panel FE (Plan A, 2026-07-23) — suy tự động từ `type` qua `NotificationType::categoryFor()`.
 
 ## Quảng cáo (Marketing/Ads — SPEC 2026-06-04 FB, SPEC 2026-06-09 TikTok)
 
@@ -437,6 +437,23 @@ Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). A
 | PATCH/DELETE | `/api/v1/admin/desktop-backgrounds/{id}` | web + `auth:admin_web` | Sửa (kể cả bật/tắt) / xoá preset. |
 | POST | `/api/v1/admin/desktop-backgrounds/media` | web + `auth:admin_web` | multipart `file` (ảnh ≤ `media.images.max_kb`) → R2 `desktop-backgrounds/` → `{ data:{ url, path } }`. |
 | GET | `/api/v1/announcements/active` | `auth:sanctum` + `verified` | `{ data:[{ id, title, body_html, dismiss_label }] }` — chỉ popup đang `is_active` + trong cửa sổ `starts_at`/`ends_at`. |
+
+#### Thông báo chung (General notification pages — Plan C, 2026-07-23)
+
+Admin soạn "trang" nội dung (ưu đãi/tin chung — tiêu đề, ảnh bìa, thân bài TipTap sanitize, nút CTA), gửi tới tenant cụ thể hoặc tất cả. Fan-out qua `app_notifications` (category=`general`) — hiện ở tab "Chung" panel thông báo user, bấm mở tab trình duyệt mới. Gửi ngay/lên lịch đều qua queue job `DispatchGeneralNotificationPageJob` (audience có thể hàng nghìn tenant).
+
+| Method | Path | Auth | Mô tả |
+|---|---|---|---|
+| GET | `/api/v1/admin/general-notification-pages` | web + `auth:admin_web` | Danh sách (phân trang). |
+| POST | `/api/v1/admin/general-notification-pages` | web + `auth:admin_web` | `{ title, body_html, cover_image_url?, cta_label?, cta_url?, audience_type: all\|tenant_ids, audience_tenant_ids?, scheduled_at?, expires_at? }` — sanitize `body_html`; có `scheduled_at` ⇒ `status=scheduled`, ngược lại `draft`. |
+| PATCH | `/api/v1/admin/general-notification-pages/{id}` | web + `auth:admin_web` | Sửa (partial). `422 PAGE_ALREADY_SENT` nếu đã gửi. |
+| DELETE | `/api/v1/admin/general-notification-pages/{id}` | web + `auth:admin_web` | Xoá. |
+| POST | `/api/v1/admin/general-notification-pages/media` | web + `auth:admin_web` | multipart `file` (ảnh) → R2 `general-notification-pages/` → `{ data:{ url } }`. |
+| POST | `/api/v1/admin/general-notification-pages/{id}/send` | web + `auth:admin_web` | Đưa job fan-out vào hàng đợi ngay. `422 PAGE_ALREADY_SENT` nếu đã gửi. |
+| GET | `/api/v1/admin/general-notification-pages/{id}/stats` | web + `auth:admin_web` | `{ data:{ view_count, audience_tenant_count } }`. |
+| GET | `/api/v1/notifications/general/{slug}` | `sanctum + verified + tenant` | Tenant xem nội dung đã nhận. `403` nếu tenant hiện tại không nằm trong audience đã gửi (kiểm tra qua `NotificationDispatcherContract::hasReceived()`); `410` nếu `expires_at` đã qua; ghi lượt xem idempotent (`general_notification_page_views`, unique per user). |
+
+Lịch gửi tự động: `notifications:dispatch-scheduled-general-pages` (mỗi phút, `app/routes/console.php`) quét `status=scheduled AND scheduled_at<=now()`.
 
 #### Cấu hình trải nghiệm Pro (Pro-trial — super-admin)
 
