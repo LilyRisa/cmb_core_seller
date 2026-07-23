@@ -52,6 +52,8 @@ class InventoryLevel extends Model
 
     public function available(): int
     {
-        return max(0, $this->on_hand - $this->reserved - $this->safety_stock);
+        // reserved không bao giờ ĐÚNG khi âm — nếu dữ liệu lịch sử lệch, max(0,reserved) tránh nó
+        // "cộng ngược" vào available (xem InventoryLedgerService::netStockForSku()).
+        return max(0, $this->on_hand - max(0, $this->reserved) - $this->safety_stock);
     }
 }

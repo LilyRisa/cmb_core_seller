@@ -8,13 +8,16 @@ use CMBcoreSeller\Modules\Inventory\Models\InventoryMovement;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 /**
  * The only writer of stock. Every change: lock the level row, mutate
  * (on_hand/reserved), refresh `available_cached`, append an immutable
  * `inventory_movements` row with `balance_after`, fire {@see InventoryChanged}.
- * Order-linked ops are idempotent on `(ref_type, ref_id, sku_id, type)` so a
+ * Order-linked ops (reserve/release/ship/return_in) are idempotent on
+ * `(sku_id, warehouse_id, ref_type, ref_id, type)`, enforced by a DB partial unique
+ * index (not an app-level pre-check — that raced under concurrent workers) so a
  * replayed OrderUpserted never double-counts. Runs with the tenant scope off and
  * an explicit tenant_id (called from a queued listener). See SPEC 0003 §4.
  */
@@ -45,14 +48,14 @@ class InventoryLedgerService
     public function reserve(int $tenantId, int $skuId, int $qty, string $refType, int $refId, ?int $warehouseId = null, ?int $userId = null): ?InventoryMovement
     {
         return $this->apply($tenantId, $skuId, $warehouseId, onHandDelta: 0, reservedDelta: $qty,
-            type: InventoryMovement::ORDER_RESERVE, qtyChange: $qty, refType: $refType, refId: $refId, note: null, userId: $userId, reason: 'order_reserve', idempotent: true);
+            type: InventoryMovement::ORDER_RESERVE, qtyChange: $qty, refType: $refType, refId: $refId, note: null, userId: $userId, reason: 'order_reserve');
     }
 
     /** Release a hold (cancel/return before ship): reserved -= qty. Idempotent. */
     public function release(int $tenantId, int $skuId, int $qty, string $refType, int $refId, ?int $warehouseId = null, ?int $userId = null): ?InventoryMovement
     {
         return $this->apply($tenantId, $skuId, $warehouseId, onHandDelta: 0, reservedDelta: -$qty,
-            type: InventoryMovement::ORDER_RELEASE, qtyChange: -$qty, refType: $refType, refId: $refId, note: null, userId: $userId, reason: 'order_release', idempotent: true);
+            type: InventoryMovement::ORDER_RELEASE, qtyChange: -$qty, refType: $refType, refId: $refId, note: null, userId: $userId, reason: 'order_release');
     }
 
     /**
@@ -62,14 +65,14 @@ class InventoryLedgerService
     public function ship(int $tenantId, int $skuId, int $qty, string $refType, int $refId, bool $hadOpenReservation, ?int $warehouseId = null, ?int $userId = null): ?InventoryMovement
     {
         return $this->apply($tenantId, $skuId, $warehouseId, onHandDelta: -$qty, reservedDelta: $hadOpenReservation ? -$qty : 0,
-            type: InventoryMovement::ORDER_SHIP, qtyChange: -$qty, refType: $refType, refId: $refId, note: null, userId: $userId, reason: 'order_ship', idempotent: true);
+            type: InventoryMovement::ORDER_SHIP, qtyChange: -$qty, refType: $refType, refId: $refId, note: null, userId: $userId, reason: 'order_ship');
     }
 
     /** Returned goods come back to stock: on_hand += qty. Idempotent. */
     public function returnIn(int $tenantId, int $skuId, int $qty, string $refType, int $refId, ?int $warehouseId = null, ?int $userId = null): ?InventoryMovement
     {
         return $this->apply($tenantId, $skuId, $warehouseId, onHandDelta: $qty, reservedDelta: 0,
-            type: InventoryMovement::RETURN_IN, qtyChange: $qty, refType: $refType, refId: $refId, note: null, userId: $userId, reason: 'return_in', idempotent: true);
+            type: InventoryMovement::RETURN_IN, qtyChange: $qty, refType: $refType, refId: $refId, note: null, userId: $userId, reason: 'return_in');
     }
 
     /** Stock transfer leg out of a warehouse: on_hand -= qty (type=transfer_out). Phase 5 WMS. */
@@ -150,12 +153,17 @@ class InventoryLedgerService
     /**
      * Tồn vật lý còn lại sau khi trừ phần đã giữ chỗ trên mọi kho (∑ on_hand − ∑ reserved).
      * < 0 ⇒ SKU đã đặt vượt tồn ("âm tồn / hết hàng") — chặn "chuẩn bị hàng / in phiếu giao hàng". SPEC 0013.
+     *
+     * `reserved` không bao giờ ĐÚNG khi âm (không thể "giữ chỗ" số lượng âm) — nếu dữ liệu lịch sử bị lệch
+     * (vd race điều kiện ghi trùng release, đã chặn ở DB — xem migration 2026_07_23_120000) khiến cột này
+     * âm, `CASE WHEN reserved>0` đảm bảo `on_hand` âm luôn được phát hiện thay vì bị số âm kia "triệt tiêu".
+     * ANSI `CASE` thay vì `GREATEST()` — SQLite (test) không có hàm này, chỉ Postgres (prod) mới có.
      */
     public function netStockForSku(int $tenantId, int $skuId): int
     {
         $level = InventoryLevel::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)->where('sku_id', $skuId)
-            ->selectRaw('COALESCE(SUM(on_hand), 0) - COALESCE(SUM(reserved), 0) AS net')->first();
+            ->selectRaw('COALESCE(SUM(on_hand), 0) - COALESCE(SUM(CASE WHEN reserved > 0 THEN reserved ELSE 0 END), 0) AS net')->first();
 
         return (int) ($level->net ?? 0);
     }
@@ -179,43 +187,45 @@ class InventoryLedgerService
 
     private function apply(
         int $tenantId, int $skuId, ?int $warehouseId, int $onHandDelta, int $reservedDelta,
-        string $type, int $qtyChange, ?string $refType, ?int $refId, ?string $note, ?int $userId, string $reason, bool $idempotent = false
+        string $type, int $qtyChange, ?string $refType, ?int $refId, ?string $note, ?int $userId, string $reason
     ): ?InventoryMovement {
         $warehouseId ??= Warehouse::defaultFor($tenantId)->getKey();
 
-        $movement = DB::transaction(function () use ($tenantId, $skuId, $warehouseId, $onHandDelta, $reservedDelta, $type, $qtyChange, $refType, $refId, $note, $userId, $idempotent) {
-            if ($idempotent && $refType !== null && $refId !== null
-                && InventoryMovement::withoutGlobalScope(TenantScope::class)
-                    ->where('tenant_id', $tenantId)->where('sku_id', $skuId)->where('warehouse_id', $warehouseId)
-                    ->where('ref_type', $refType)->where('ref_id', $refId)->where('type', $type)->exists()) {
-                return null; // already applied — replay-safe
-            }
+        try {
+            $movement = DB::transaction(function () use ($tenantId, $skuId, $warehouseId, $onHandDelta, $reservedDelta, $type, $qtyChange, $refType, $refId, $note, $userId) {
+                /** @var InventoryLevel $level */
+                $level = InventoryLevel::withoutGlobalScope(TenantScope::class)
+                    ->where('tenant_id', $tenantId)->where('sku_id', $skuId)->where('warehouse_id', $warehouseId)->lockForUpdate()->first()
+                    ?? InventoryLevel::withoutGlobalScope(TenantScope::class)->create([
+                        'tenant_id' => $tenantId, 'sku_id' => $skuId, 'warehouse_id' => $warehouseId,
+                        'on_hand' => 0, 'reserved' => 0, 'safety_stock' => 0, 'available_cached' => 0,
+                    ]);
 
-            /** @var InventoryLevel $level */
-            $level = InventoryLevel::withoutGlobalScope(TenantScope::class)
-                ->where('tenant_id', $tenantId)->where('sku_id', $skuId)->where('warehouse_id', $warehouseId)->lockForUpdate()->first()
-                ?? InventoryLevel::withoutGlobalScope(TenantScope::class)->create([
+                $level->on_hand += $onHandDelta;
+                $level->reserved += $reservedDelta;
+                $available = max(0, $level->on_hand - $level->reserved - $level->safety_stock);
+                $level->available_cached = $available;
+                // reserved không bao giờ ĐÚNG khi âm — GREATEST tránh nó "triệt tiêu" on_hand âm thật.
+                $level->is_negative = ($level->on_hand - max(0, $level->reserved)) < 0;
+                $level->save();
+
+                // Idempotency for reserve/release/ship/return_in is enforced by the DB partial unique
+                // index (migration 2026_07_23_120000) on (sku_id, warehouse_id, ref_type, ref_id, type) —
+                // not by a pre-check, which raced with concurrent workers processing the same order event
+                // (confirmed in prod: 2 identical order_release rows for the same ref_id). A duplicate
+                // insert throws here and the whole transaction — including the level mutation above —
+                // rolls back, so a replayed event is a true no-op.
+                return InventoryMovement::withoutGlobalScope(TenantScope::class)->create([
                     'tenant_id' => $tenantId, 'sku_id' => $skuId, 'warehouse_id' => $warehouseId,
-                    'on_hand' => 0, 'reserved' => 0, 'safety_stock' => 0, 'available_cached' => 0,
+                    'qty_change' => $qtyChange, 'type' => $type, 'ref_type' => $refType, 'ref_id' => $refId,
+                    'balance_after' => $level->on_hand, 'note' => $note, 'created_by' => $userId, 'created_at' => now(),
                 ]);
-
-            $level->on_hand += $onHandDelta;
-            $level->reserved += $reservedDelta;
-            $available = max(0, $level->on_hand - $level->reserved - $level->safety_stock);
-            $level->available_cached = $available;
-            $level->is_negative = ($level->on_hand - $level->reserved) < 0;
-            $level->save();
-
-            return InventoryMovement::withoutGlobalScope(TenantScope::class)->create([
-                'tenant_id' => $tenantId, 'sku_id' => $skuId, 'warehouse_id' => $warehouseId,
-                'qty_change' => $qtyChange, 'type' => $type, 'ref_type' => $refType, 'ref_id' => $refId,
-                'balance_after' => $level->on_hand, 'note' => $note, 'created_by' => $userId, 'created_at' => now(),
-            ]);
-        });
-
-        if ($movement !== null) {
-            InventoryChanged::dispatch($tenantId, [$skuId], $reason);
+            });
+        } catch (UniqueConstraintViolationException) {
+            return null; // already applied (concurrent duplicate) — replay-safe
         }
+
+        InventoryChanged::dispatch($tenantId, [$skuId], $reason);
 
         return $movement;
     }

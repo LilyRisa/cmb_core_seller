@@ -93,4 +93,40 @@ class InventoryLedgerTest extends TestCase
         $this->assertSame(0, $level->available_cached);   // clamped
         $this->assertTrue($level->is_negative);
     }
+
+    public function test_negative_reserved_does_not_mask_out_of_stock_detection(): void
+    {
+        // Reproduces prod bug (order 260722B6YFNQD7, sku_id=4): a historical duplicate
+        // release() (race condition, now closed by the DB unique constraint below) drove
+        // `reserved` itself negative. The naive (on_hand - reserved) formula then computes
+        // -3 - (-3) = 0 and stops flagging an SKU that is genuinely oversold (on_hand < 0).
+        $tid = (int) $this->tenant->getKey();
+        $sid = (int) $this->sku->getKey();
+        $this->ledger->adjust($tid, $sid, null, -3);
+        $this->ledger->release($tid, $sid, 3, 'order_item', 999);
+
+        $level = $this->level();
+        $this->assertSame(-3, $level->on_hand);
+        $this->assertSame(-3, $level->reserved);
+        $this->assertTrue($level->is_negative, 'is_negative phải true khi on_hand âm, dù reserved cũng âm che mất hiệu số.');
+        $this->assertLessThan(0, $this->ledger->netStockForSku($tid, $sid), 'netStockForSku phải âm để chặn chuẩn bị hàng/in phiếu (SPEC 0013).');
+    }
+
+    public function test_release_duplicate_ref_id_is_noop_via_db_unique_constraint(): void
+    {
+        // Simulates the concurrent double-release found in prod (2 order_release rows,
+        // same ref_id, same timestamp — the app-level exists() pre-check isn't atomic with
+        // the row lock, so two racing workers can both pass it). The DB unique constraint
+        // must be the real backstop, not just the app-level check.
+        $tid = (int) $this->tenant->getKey();
+        $sid = (int) $this->sku->getKey();
+        $this->ledger->adjust($tid, $sid, null, 10);
+        $this->ledger->reserve($tid, $sid, 3, 'order_item', 500);
+
+        $first = $this->ledger->release($tid, $sid, 3, 'order_item', 500);
+        $this->assertNotNull($first);
+        $second = $this->ledger->release($tid, $sid, 3, 'order_item', 500);
+        $this->assertNull($second, 'release() trùng ref_id phải no-op, không trừ reserved lần 2.');
+        $this->assertSame(0, $this->level()->reserved);
+    }
 }
