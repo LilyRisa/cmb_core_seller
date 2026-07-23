@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Admin;
 
+use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPage;
 use CMBcoreSeller\Modules\Admin\Services\GeneralNotificationPageService;
 use CMBcoreSeller\Modules\Notifications\Models\Notification;
+use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -54,10 +56,10 @@ class GeneralNotificationPageServiceTest extends TestCase
     public function test_dispatch_fans_out_to_all_users_of_each_tenant_and_marks_sent(): void
     {
         $tenant = Tenant::create(['name' => 'Shop', 'status' => 'active']);
-        $u1 = \CMBcoreSeller\Models\User::factory()->create();
-        $u2 = \CMBcoreSeller\Models\User::factory()->create();
-        $tenant->users()->attach($u1->getKey(), ['role' => \CMBcoreSeller\Modules\Tenancy\Enums\Role::Owner->value]);
-        $tenant->users()->attach($u2->getKey(), ['role' => \CMBcoreSeller\Modules\Tenancy\Enums\Role::Owner->value]);
+        $u1 = User::factory()->create();
+        $u2 = User::factory()->create();
+        $tenant->users()->attach($u1->getKey(), ['role' => Role::Owner->value]);
+        $tenant->users()->attach($u2->getKey(), ['role' => Role::Owner->value]);
         $page = GeneralNotificationPage::create([
             'title' => 'Ưu đãi', 'slug' => 'slug-3', 'body_html' => '<p>x</p>',
             'audience_type' => GeneralNotificationPage::AUDIENCE_ALL, 'status' => 'draft', 'created_by_user_id' => 1,

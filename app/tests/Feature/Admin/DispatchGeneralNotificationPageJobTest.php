@@ -2,13 +2,14 @@
 
 namespace Tests\Feature\Admin;
 
+use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Admin\Jobs\DispatchGeneralNotificationPageJob;
 use CMBcoreSeller\Modules\Admin\Models\GeneralNotificationPage;
+use CMBcoreSeller\Modules\Admin\Services\GeneralNotificationPageService;
 use CMBcoreSeller\Modules\Notifications\Models\Notification;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
-use CMBcoreSeller\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -26,7 +27,7 @@ class DispatchGeneralNotificationPageJobTest extends TestCase
             'audience_type' => GeneralNotificationPage::AUDIENCE_ALL, 'status' => 'draft', 'created_by_user_id' => 1,
         ]);
 
-        (new DispatchGeneralNotificationPageJob((int) $page->getKey()))->handle(app(\CMBcoreSeller\Modules\Admin\Services\GeneralNotificationPageService::class));
+        (new DispatchGeneralNotificationPageJob((int) $page->getKey()))->handle(app(GeneralNotificationPageService::class));
 
         $this->assertSame(GeneralNotificationPage::STATUS_SENT, $page->fresh()->status);
         $this->assertSame(1, Notification::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenant->getKey())->count());
@@ -43,7 +44,7 @@ class DispatchGeneralNotificationPageJobTest extends TestCase
             'sent_at' => now()->subHour(), 'created_by_user_id' => 1,
         ]);
 
-        (new DispatchGeneralNotificationPageJob((int) $page->getKey()))->handle(app(\CMBcoreSeller\Modules\Admin\Services\GeneralNotificationPageService::class));
+        (new DispatchGeneralNotificationPageJob((int) $page->getKey()))->handle(app(GeneralNotificationPageService::class));
 
         $this->assertSame(0, Notification::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenant->getKey())->count());
     }
@@ -51,7 +52,7 @@ class DispatchGeneralNotificationPageJobTest extends TestCase
     public function test_job_is_noop_when_page_not_found(): void
     {
         // Không throw — page đã bị xoá giữa lúc job chờ hàng đợi là tình huống hợp lệ.
-        (new DispatchGeneralNotificationPageJob(999999))->handle(app(\CMBcoreSeller\Modules\Admin\Services\GeneralNotificationPageService::class));
+        (new DispatchGeneralNotificationPageJob(999999))->handle(app(GeneralNotificationPageService::class));
         $this->assertTrue(true);
     }
 }
