@@ -140,6 +140,9 @@ export interface OrderFilters {
     unmapped?: boolean;   // đơn còn dòng chưa ghép SKU (has_unmapped_sku) — cột riêng, không phải has_issue
     slip?: 'printable' | 'loading' | 'failed';  // tình trạng phiếu giao hàng của đơn đã "Chuẩn bị hàng" (SPEC 0013)
     printed?: boolean;   // đã in phiếu (≥1 vận đơn open có print_count>0) — chỉ áp ở "Đang xử lý"
+    /** Danh sách id tường minh (nối bằng dấu phẩy) — BỎ QUA mọi filter khác. Dùng để poll đúng các đơn
+     * đang theo dõi (vd modal "Chuẩn bị hàng") dù đơn đã rời khỏi status/tab đang lọc. */
+    ids?: string;
     sort?: string;
     page?: number;
     per_page?: number;
@@ -187,12 +190,12 @@ function useScopedApi() {
     return useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
 }
 
-export function useOrders(filters: OrderFilters) {
+export function useOrders(filters: OrderFilters, opts: { enabled?: boolean } = {}) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
         queryKey: ['orders', tenantId, filters],
-        enabled: api != null,
+        enabled: api != null && (opts.enabled ?? true),
         placeholderData: (prev) => prev,
         queryFn: async () => {
             const params: Record<string, string | number | boolean> = {};

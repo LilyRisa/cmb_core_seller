@@ -23,7 +23,7 @@ import { withShopeePrintNotice } from '@/lib/shopeePrintNotice';
 import { Order, useBulkCancelOrders, useBulkDeleteOrders, useFetchAllOrders, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
 import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, usePackShipments, type BulkActionResult } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
-import { useBulkAction } from '@/lib/useBulkAction';
+import { useBulkAction, type BulkItemStatus } from '@/lib/useBulkAction';
 import { BulkProgressModal } from '@/components/BulkProgressModal';
 import { useSyncPolling } from '@/lib/syncPolling';
 import { useSyncRuns } from '@/lib/syncLogs';
@@ -165,8 +165,32 @@ export function OrdersPage() {
     // / shop / q / placed_*. Bộ lọc chỉ ảnh hưởng list + chip "Lọc" (`stats` filtered ở trên), không can
     // thiệp tab. Query thứ 2 không truyền filter ⇒ Laravel cache-friendly + 1 round-trip ngắn (chỉ aggregate).
     const { data: tabStats, refetch: refetchTabStats } = useOrderStats({});
+    // "Chuẩn bị hàng" bulk trả về NGAY {queued,...} — job PrepareShipment xử lý thật ở nền (SPEC
+    // 2026-06-26). Modal (BulkProgressModal) hiện 'queued' tĩnh mãi nếu không ai cập nhật lại. Poll ĐÚNG
+    // các id đang 'queued' theo `ids` (bỏ qua status/tab hiện tại — đơn đã rời khỏi tab đang xem, vd
+    // pending→processing) để biết job xong chưa: có vận đơn ⇒ 'ok'; has_issue (job failed() sau hết tries)
+    // ⇒ 'error' kèm lý do thật; còn lại giữ nguyên 'queued'.
+    const queuedIds = useMemo(() => bulkProgress.items.filter((it) => it.status === 'queued').map((it) => it.id), [bulkProgress.items]);
+    const { data: queuedStatusData, refetch: refetchQueuedStatus } = useOrders(
+        { ids: queuedIds.join(','), per_page: Math.max(1, queuedIds.length) },
+        { enabled: queuedIds.length > 0 },
+    );
+    useEffect(() => {
+        if (!queuedStatusData?.data.length) return;
+        type Update = { id: number; status: BulkItemStatus; reason?: string };
+        const updates = queuedStatusData.data.flatMap((o): Update[] => {
+            if (o.shipment) return [{ id: o.id, status: 'ok', reason: 'Đã có phiếu giao hàng.' }];
+            if (o.has_issue && o.issue_reason) return [{ id: o.id, status: 'error', reason: o.issue_reason }];
+            return [];
+        });
+        bulkProgress.patchStatuses(updates);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [queuedStatusData]);
     // Sync orders dispatch job chạy nền — poll list + stats để đơn mới về tự render, không cần reload trang.
-    const syncPoll = useSyncPolling(() => { refetch(); refetchStats(); refetchTabStats(); }, { durationMs: 90_000 });
+    const syncPoll = useSyncPolling(() => {
+        refetch(); refetchStats(); refetchTabStats();
+        if (queuedIds.length > 0) void refetchQueuedStatus();
+    }, { durationMs: 90_000 });
     // Theo dõi sync runs đang chạy để hiện thanh tiến trình (refetch 15s/lần qua hook).
     const runningSyncs = useSyncRuns({ status: 'running', per_page: 10 });
     // Bỏ qua run "treo": job chết giữa chừng để lại sync_run ở `running` mãi (không có `finished_at`,
@@ -635,6 +659,25 @@ export function OrdersPage() {
                             )}
                         </Space>
                     ) : undefined}
+                />
+            )}
+
+            {/* Ẩn modal tiến trình bulk (vd "Chuẩn bị hàng") KHÔNG xoá dữ liệu — items vẫn còn trong
+                useBulkAction. Banner này là lối bật lại duy nhất để xem có đơn nào lỗi + lý do. */}
+            {!bulkProgress.open && bulkProgress.items.length > 0 && (
+                <Alert
+                    type={bulkProgress.items.some((it) => it.status === 'error') ? 'error' : 'info'}
+                    showIcon style={{ marginTop: 8, cursor: 'pointer' }}
+                    onClick={bulkProgress.reopen}
+                    message={
+                        <Space>
+                            <span>{bulkProgress.title} — {bulkProgress.items.filter((it) => it.status !== 'pending' && it.status !== 'running').length}/{bulkProgress.items.length} xong</span>
+                            {bulkProgress.items.some((it) => it.status === 'error') && (
+                                <Tag color="error">{bulkProgress.items.filter((it) => it.status === 'error').length} lỗi</Tag>
+                            )}
+                            <Typography.Link>Xem lại</Typography.Link>
+                        </Space>
+                    }
                 />
             )}
 

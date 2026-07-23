@@ -70,5 +70,18 @@ export function useBulkAction() {
         if (ids.length) await runIds(ids, runner);
     }, [items, runIds]);
 
-    return { title, open, items, running, start, retryErrors, close: () => setOpen(false) };
+    /** Cập nhật status/reason của các dòng đã có (vd 'queued' → 'ok'/'error') khi việc thật xử lý XONG ở
+     * nền, sau khi request ban đầu đã trả về. Không đụng dòng nào không có trong `updates`. */
+    const patchStatuses = useCallback((updates: Array<{ id: number; status: BulkItemStatus; reason?: string }>) => {
+        if (updates.length === 0) return;
+        setItems((prev) => {
+            const byId = new Map(updates.map((u) => [u.id, u]));
+            return prev.map((it) => {
+                const u = byId.get(it.id);
+                return u ? { ...it, status: u.status, reason: u.reason ?? it.reason } : it;
+            });
+        });
+    }, []);
+
+    return { title, open, items, running, start, retryErrors, patchStatuses, close: () => setOpen(false), reopen: () => setOpen(true) };
 }

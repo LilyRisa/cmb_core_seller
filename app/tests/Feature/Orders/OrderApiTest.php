@@ -114,6 +114,35 @@ class OrderApiTest extends TestCase
         $this->assertSame(['TT-1003', 'TT-1002', 'TT-1001'], collect($res->json('data'))->pluck('order_number')->all());
     }
 
+    public function test_index_filters_by_explicit_ids_ignoring_other_filters(): void
+    {
+        // "Chuẩn bị hàng" bulk modal needs to poll the exact tracked order ids regardless of the
+        // current tab/status filter (the orders may have already moved out of that tab/status).
+        $pending = Order::withoutGlobalScope(TenantScope::class)->where('order_number', 'TT-1001')->firstOrFail();
+        $shipped = Order::withoutGlobalScope(TenantScope::class)->where('order_number', 'TT-1002')->firstOrFail();
+        $cancelled = Order::withoutGlobalScope(TenantScope::class)->where('order_number', 'TT-1003')->firstOrFail();
+
+        // status filter would normally exclude the shipped order — ids must override/ignore it.
+        $res = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson("/api/v1/orders?status=pending&ids={$pending->id},{$shipped->id}")
+            ->assertOk();
+        $numbers = collect($res->json('data'))->pluck('order_number')->all();
+        $this->assertEqualsCanonicalizing(['TT-1001', 'TT-1002'], $numbers);
+        $this->assertNotContains('TT-1003', $numbers);
+
+        // a non-numeric/garbage id is ignored rather than erroring
+        $res2 = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson("/api/v1/orders?ids={$cancelled->id},not-a-number")
+            ->assertOk();
+        $this->assertSame(['TT-1003'], collect($res2->json('data'))->pluck('order_number')->all());
+
+        // another tenant's order id must never leak even if explicitly requested
+        $otherOrder = Order::withoutGlobalScope(TenantScope::class)->where('order_number', 'OTHER-1')->firstOrFail();
+        $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson("/api/v1/orders?ids={$otherOrder->id}")
+            ->assertOk()->assertJsonCount(0, 'data');
+    }
+
     public function test_show_includes_items_and_status_history(): void
     {
         $order = Order::withoutGlobalScope(TenantScope::class)->where('order_number', 'TT-1001')->first();

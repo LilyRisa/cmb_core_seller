@@ -548,6 +548,15 @@ class OrderController extends Controller
             ->whereColumn('channel_accounts.id', 'orders.channel_account_id')
             ->where('channel_accounts.status', ChannelAccount::STATUS_REVOKED));
 
+        // Lọc theo danh sách id TƯỜNG MINH — BỎ QUA mọi filter khác bên dưới (status/tab hiện tại…).
+        // Dùng cho FE poll trạng thái thật của đúng các đơn đang theo dõi (vd modal "Chuẩn bị hàng")
+        // sau khi đơn đã rời khỏi tab/status đang xem — spread nguyên filter hiện tại + ids sẽ vẫn ra
+        // đúng kết quả thay vì bị status cũ loại mất. TenantScope trên $query đã tự chặn id tenant khác.
+        if ($use('ids') && $ids = $request->query('ids')) {
+            $idList = array_values(array_filter(array_map('intval', explode(',', (string) $ids)), fn ($v) => $v > 0));
+
+            return $idList ? $query->whereIn('orders.id', $idList) : $query->whereRaw('1 = 0');
+        }
         if ($use('status') && $status = $request->query('status')) {
             $values = array_values(array_filter(array_map('trim', explode(',', (string) $status))));
             $valid = array_intersect($values, array_map(fn ($s) => $s->value, StandardOrderStatus::cases()));
