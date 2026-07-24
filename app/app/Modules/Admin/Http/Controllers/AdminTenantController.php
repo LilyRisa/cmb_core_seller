@@ -340,6 +340,33 @@ class AdminTenantController extends Controller
         return response()->json(['data' => $this->service->dailyOrderCounts($tenant->getKey(), $days)]);
     }
 
+    /** GET /api/v1/admin/tenants/{tid}/product-order-stats */
+    public function productOrderStats(Request $request, int $tid): JsonResponse
+    {
+        $tenant = Tenant::query()->findOrFail($tid);
+        $days = max(1, min(365, (int) $request->query('days', 30)));
+        $perPage = max(1, min(100, (int) $request->query('per_page', 20)));
+        $page = max(1, (int) $request->query('page', 1));
+        $search = $request->query('search');
+
+        $result = $this->service->productOrderCounts($tenant->getKey(), $days, $search, $page, $perPage);
+
+        return response()->json([
+            'data' => collect($result->items())->map(fn ($r) => [
+                'sku_id' => $r->sku_id !== null ? (int) $r->sku_id : null,
+                'sku_code' => $r->sku_code,
+                'name' => $r->name,
+                'mapped' => $r->sku_id !== null,
+                'order_count' => (int) $r->order_count,
+                'qty' => (int) $r->qty,
+            ])->all(),
+            'meta' => ['pagination' => [
+                'page' => $result->currentPage(), 'per_page' => $result->perPage(),
+                'total' => $result->total(), 'total_pages' => $result->lastPage(),
+            ]],
+        ]);
+    }
+
     /** GET /api/v1/admin/tenants/{tid}/order-status-history */
     public function orderStatusHistory(Request $request, int $tid): JsonResponse
     {

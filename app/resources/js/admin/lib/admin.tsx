@@ -383,6 +383,27 @@ export function useAdminTenantOrderStatusHistory(tenantId: number | null, page =
     });
 }
 
+export interface AdminProductOrderStatRow {
+    sku_id: number | null; sku_code: string | null; name: string;
+    mapped: boolean; order_count: number; qty: number;
+}
+
+export function useAdminTenantProductOrderStats(tenantId: number | null, page = 1, days = 30, search = '') {
+    return useQuery({
+        queryKey: ['admin', 'tenants', 'detail', tenantId, 'product-order-stats', page, days, search],
+        enabled: tenantId != null,
+        queryFn: async () => {
+            const params: Record<string, string | number> = { page, days };
+            if (search.trim() !== '') params.search = search.trim();
+            const { data } = await api.get<Paginated<AdminProductOrderStatRow>>(
+                `/admin/tenants/${tenantId}/product-order-stats`, { params },
+            );
+            return data;
+        },
+        placeholderData: (p) => p,
+    });
+}
+
 export interface AdminFullAuditEntry extends AdminAuditEntry { admin_user_id: number | null }
 
 export function useAdminTenantAuditLogs(tenantId: number | null, page = 1, actionPrefix?: string) {

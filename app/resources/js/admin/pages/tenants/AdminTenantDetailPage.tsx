@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     App, Button, Descriptions, Empty, Form, Input, InputNumber, Modal, Radio, Segmented, Space, Spin, Table, Tabs, Tag, Typography,
@@ -12,7 +12,7 @@ import { useReasonConfirm } from '@admin/components/ReasonConfirmModal';
 import {
     useAdminChangePlan, useAdminDeleteChannel, useAdminPlans, useAdminReactivateTenant, useAdminSuspendTenant,
     useAdminTenant, useAdminTenantAiCreditAdjust, useAdminTenantAuditLogs, useAdminTenantDailyOrderStats,
-    useAdminTenantLoginHistory, useAdminTenantOrderStatusHistory,
+    useAdminTenantLoginHistory, useAdminTenantOrderStatusHistory, useAdminTenantProductOrderStats,
     type AdminChannelAccount, type AdminAdAccount, type AdminMember, type AdminTenantDetail, type AdminFullAuditEntry,
 } from '@admin/lib/admin';
 
@@ -54,6 +54,7 @@ export function AdminTenantDetailPage() {
                     { key: 'members', label: `Thành viên (${t.members.length})`, children: <MembersTab members={t.members} /> },
                     { key: 'ai', label: 'Hạn mức AI', children: <AiCreditTab tenantId={tenantId!} t={t} /> },
                     { key: 'orders', label: 'SKU & đơn hàng', children: <OrdersStatsTab tenantId={tenantId!} skuCount={t.sku_count} /> },
+                    { key: 'product-orders', label: 'Sản phẩm & đơn hàng', children: <ProductOrderStatsTab tenantId={tenantId!} /> },
                     { key: 'audit', label: 'Audit log đầy đủ', children: <AuditLogTab tenantId={tenantId!} /> },
                     { key: 'logins', label: 'Lịch sử đăng nhập', children: <LoginHistoryTab tenantId={tenantId!} /> },
                 ]}
@@ -439,6 +440,70 @@ function OrdersStatsTab({ tenantId, skuCount }: { tenantId: number; skuCount: nu
                     current: page,
                     pageSize: history?.meta.pagination.per_page ?? 30,
                     total: history?.meta.pagination.total ?? 0,
+                    showSizeChanger: false,
+                    onChange: setPage,
+                }}
+            />
+        </>
+    );
+}
+
+// -- Product order stats tab (mới) ---------------------------------------------
+
+function ProductOrderStatsTab({ tenantId }: { tenantId: number }) {
+    const [page, setPage] = useState(1);
+    const [days, setDays] = useState(30);
+    const [term, setTerm] = useState('');
+    const [search, setSearch] = useState('');
+    useEffect(() => {
+        const t = setTimeout(() => setSearch(term.trim()), 300);
+        return () => clearTimeout(t);
+    }, [term]);
+
+    const { data, isFetching } = useAdminTenantProductOrderStats(tenantId, page, days, search);
+
+    return (
+        <>
+            <Space style={{ marginBottom: 16 }} wrap>
+                <Input.Search
+                    placeholder="Tìm theo tên hoặc mã SKU"
+                    allowClear
+                    style={{ width: 280 }}
+                    value={term}
+                    onChange={(e) => { setTerm(e.target.value); setPage(1); }}
+                />
+                <Segmented
+                    value={days}
+                    onChange={(v) => { setDays(v as number); setPage(1); }}
+                    options={[
+                        { label: '7 ngày', value: 7 },
+                        { label: '30 ngày', value: 30 },
+                        { label: '90 ngày', value: 90 },
+                    ]}
+                />
+            </Space>
+            <Table size="small" rowKey={(r) => r.sku_id ?? r.name} loading={isFetching}
+                dataSource={data?.data ?? []}
+                columns={[
+                    {
+                        title: 'Sản phẩm', key: 'name',
+                        render: (_v, r) => (
+                            <Space direction="vertical" size={0}>
+                                <Typography.Text>{r.name}</Typography.Text>
+                                <Space size={4}>
+                                    {r.sku_code && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.sku_code}</Typography.Text>}
+                                    {!r.mapped && <Tag color="orange">Chưa gán SKU</Tag>}
+                                </Space>
+                            </Space>
+                        ),
+                    },
+                    { title: 'Số đơn', dataIndex: 'order_count', key: 'order_count', width: 100 },
+                    { title: 'Số lượng bán', dataIndex: 'qty', key: 'qty', width: 120 },
+                ]}
+                pagination={{
+                    current: page,
+                    pageSize: data?.meta.pagination.per_page ?? 20,
+                    total: data?.meta.pagination.total ?? 0,
                     showSizeChanger: false,
                     onChange: setPage,
                 }}

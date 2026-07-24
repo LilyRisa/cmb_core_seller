@@ -16,9 +16,11 @@ use CMBcoreSeller\Modules\Billing\Services\UsageService;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Services\ChannelConnectionService;
 use CMBcoreSeller\Modules\Orders\Models\Order;
+use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -530,5 +532,53 @@ class AdminTenantService
             'count' => (int) $r->getAttribute('cnt'),
             'grand_total_sum' => (int) $r->getAttribute('total'),
         ])->all();
+    }
+
+    /**
+     * Số đơn/số lượng bán theo từng sản phẩm, N ngày gần nhất (theo `placed_at`, fallback `created_at`).
+     * Đơn `cancelled`/`returned_refunded` không tính (giống SalesReportService::topProducts). Gộp theo
+     * `sku_id` khi đã map SKU nội bộ; sản phẩm chưa map gộp theo `external_product_id`+tên snapshot để
+     * không lẫn 2 sản phẩm khác nhau cùng tên.
+     */
+    public function productOrderCounts(int $tenantId, int $days, ?string $search, int $page, int $perPage): LengthAwarePaginator
+    {
+        $since = now()->subDays(max(1, min(365, $days)))->startOfDay();
+        $excludedStatuses = ['cancelled', 'returned_refunded'];
+        // CAST(... AS VARCHAR) chạy được cả sqlite (dev) lẫn postgres (prod) — xem ChannelListingController::grouped().
+        $groupKeyExpr = "COALESCE(CAST(order_items.sku_id AS VARCHAR), 'ext:' || COALESCE(order_items.external_product_id, '') || ':' || order_items.name)";
+
+        $query = OrderItem::query()->withoutGlobalScope(TenantScope::class)
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->leftJoin('skus', function ($j) use ($tenantId) {
+                $j->on('skus.id', '=', 'order_items.sku_id')->where('skus.tenant_id', $tenantId);
+            })
+            ->where('orders.tenant_id', $tenantId)
+            ->whereNull('orders.deleted_at')
+            ->whereNotIn('orders.status', $excludedStatuses)
+            ->where(function ($q) use ($since) {
+                $q->where('orders.placed_at', '>=', $since)->orWhere(function ($q2) use ($since) {
+                    $q2->whereNull('orders.placed_at')->where('orders.created_at', '>=', $since);
+                });
+            })
+            ->selectRaw("{$groupKeyExpr} as group_key")
+            ->selectRaw('MAX(order_items.sku_id) as sku_id')
+            ->selectRaw('MAX(skus.sku_code) as sku_code')
+            ->selectRaw('MAX(COALESCE(skus.name, order_items.name)) as name')
+            ->selectRaw('COUNT(DISTINCT order_items.order_id) as order_count')
+            ->selectRaw('SUM(order_items.quantity) as qty')
+            ->groupBy(DB::raw($groupKeyExpr));
+
+        if ($search !== null && trim($search) !== '') {
+            // LOWER() (không ILIKE) để chạy cả sqlite/postgres — xem SkuSearch::apply().
+            $term = '%'.mb_strtolower(trim($search)).'%';
+            $query->where(function ($q) use ($term) {
+                $q->whereRaw('LOWER(order_items.name) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(skus.name) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(skus.sku_code) LIKE ?', [$term]);
+            });
+        }
+
+        return $query->orderByDesc('order_count')
+            ->paginate(max(1, min(100, $perPage)), ['*'], 'page', max(1, $page));
     }
 }

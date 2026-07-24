@@ -61,6 +61,8 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
             ->whereNumber('tid')->name('admin.tenants.orders.daily-stats');
         Route::get('tenants/{tid}/order-status-history', [AdminTenantController::class, 'orderStatusHistory'])
             ->whereNumber('tid')->name('admin.tenants.order-status-history');
+        Route::get('tenants/{tid}/product-order-stats', [AdminTenantController::class, 'productOrderStats'])
+            ->whereNumber('tid')->name('admin.tenants.product-order-stats');
         Route::get('tenants/{tid}/audit-logs', [AdminTenantController::class, 'auditLogs'])
             ->whereNumber('tid')->name('admin.tenants.audit-logs');
 
